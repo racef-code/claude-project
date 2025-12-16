@@ -97,14 +97,13 @@ Generate the try-on image now."""
 
         print("Calling Gemini API...")
 
-        # Call Gemini API
-        model = genai.GenerativeModel("gemini-2.0-flash-exp")
+        # Call Gemini API with stable model
+        # Using gemini-1.5-flash for image generation
+        model = genai.GenerativeModel("gemini-1.5-flash")
 
+        # Call Gemini API - model will return image based on prompt
         response = model.generate_content(
-            [prompt, user_img, garment_img],
-            generation_config=genai.GenerationConfig(
-                response_modalities=["image"]
-            )
+            [prompt, user_img, garment_img]
         )
 
         print("Gemini API response received")
