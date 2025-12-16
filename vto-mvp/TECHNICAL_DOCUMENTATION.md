@@ -29,7 +29,7 @@ The Virtual Try-On MVP is a web-based application that uses artificial intellige
 
 - **Catalog Display**: Shows available garments in a responsive grid
 - **Photo Upload**: Accepts user photos via drag-drop or file selection
-- **AI Generation**: Uses Google Gemini 2.0 Flash to generate realistic try-on images
+- **AI Generation**: Uses Google Gemini 1.5 Flash to generate realistic try-on images
 - **Comparison View**: Displays original photo alongside the try-on result
 - **Multi-Try**: Allows users to try multiple garments without re-uploading their photo
 
@@ -87,7 +87,7 @@ The Virtual Try-On MVP is a web-based application that uses artificial intellige
 ┌──────────────────────▼──────────────────────────────────────┐
 │                 GOOGLE GEMINI API                            │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │         Gemini 2.0 Flash Model                        │  │
+│  │         Gemini 1.5 Flash Model                        │  │
 │  │  - Receives: User photo + Garment photo + Prompt      │  │
 │  │  - Processes: AI image generation                     │  │
 │  │  - Returns: Generated try-on image                    │  │
@@ -213,7 +213,7 @@ User          Browser(JS)        Flask Backend       Gemini API
                             ┌──────────────────────▼────────┐
                             │    Google Gemini API          │
                             │                               │
-                            │  - Gemini 2.0 Flash Model     │
+                            │  - Gemini 1.5 Flash Model     │
                             │  - Image Generation           │
                             └───────────────────────────────┘
 ```
@@ -424,7 +424,7 @@ User          Browser(JS)        Flask Backend       Gemini API
 
 | Service | Purpose |
 |---------|---------|
-| Google Gemini 2.0 Flash | AI image generation |
+| Google Gemini 1.5 Flash | AI image generation |
 
 ### Development Tools
 
@@ -959,7 +959,7 @@ garment_img = Image.open(garment_path)
 **1. Initialize Model**
 ```python
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel("gemini-2.0-flash-exp")
+model = genai.GenerativeModel("gemini-1.5-flash")
 ```
 
 **2. Construct Prompt**
@@ -986,12 +986,10 @@ Generate the try-on image now."""
 **3. Make API Call**
 ```python
 response = model.generate_content(
-    [prompt, user_img, garment_img],
-    generation_config=genai.GenerationConfig(
-        response_modalities=["image"]
-    )
+    [prompt, user_img, garment_img]
 )
 ```
+*Note: The model will generate images based on the prompt without requiring explicit configuration parameters.*
 
 **Multimodal Input**:
 - `prompt`: Text string
@@ -1031,7 +1029,7 @@ return jsonify({
 
 ## AI Integration
 
-### Why Gemini 2.0 Flash?
+### Why Gemini 1.5 Flash?
 
 | Feature | Benefit |
 |---------|---------|
@@ -1039,6 +1037,7 @@ return jsonify({
 | Fast | "Flash" variant optimized for speed |
 | Image Generation | Can output images |
 | Cost-effective | Lower cost than larger models |
+| Stable | Production-ready, widely available |
 | Easy Integration | Simple Python SDK |
 
 ### Prompt Design Strategy
@@ -1347,13 +1346,10 @@ Route decorator → serves HTML template.
 
 ```python
 response = model.generate_content(
-    [prompt, user_img, garment_img],
-    generation_config=genai.GenerationConfig(
-        response_modalities=["image"]
-    )
+    [prompt, user_img, garment_img]
 )
 ```
-Calls Gemini with multimodal input, requests image output.
+Calls Gemini with multimodal input. The model generates images based on the prompt.
 
 ```python
 if __name__ == '__main__':
@@ -1670,6 +1666,27 @@ nano .env
 
 # Restart server
 ```
+
+---
+
+### Problem: "GenerationConfig got an unexpected keyword argument 'response_modalities'"
+
+**Cause**: Older version of google-generativeai library doesn't support this parameter
+
+**Solution**:
+This has been fixed in the current version of the code. If you see this error:
+
+1. **Pull latest changes**:
+   ```bash
+   git pull origin claude/virtual-tryon-mvp-GoRLD
+   ```
+
+2. **Restart the server**:
+   ```bash
+   python app.py
+   ```
+
+The fix removes the unsupported `response_modalities` parameter. The model will automatically generate images based on the prompt without requiring this configuration.
 
 ---
 
