@@ -1,0 +1,25 @@
+{
+  "items": [
+    {
+      "id": "item_001",
+      "name": "Oversized Linen Blazer",
+      "image": "catalog/item_001.jpg",
+      "price": "€129",
+      "prompt": "The person is wearing an oversized single-breasted linen blazer in sand beige color. The blazer has a relaxed fit with slightly dropped shoulders, natural linen texture visible, sleeves can be gently rolled. The blazer is worn open over whatever the person has underneath. Maintain the person's exact face, hair, skin tone, and body pose. Only change the clothing to show them wearing this blazer naturally."
+    },
+    {
+      "id": "item_002",
+      "name": "Cotton Crew Neck Tee",
+      "image": "catalog/item_002.jpg",
+      "price": "€45",
+      "prompt": "The person is wearing a relaxed-fit cotton crew neck t-shirt in off-white/cream color. The fabric has a soft, slightly textured appearance. The fit is comfortable, not tight. Maintain the person's exact face, hair, skin tone, and body pose. Only change the clothing to show them wearing this t-shirt naturally."
+    },
+    {
+      "id": "item_003",
+      "name": "Denim Jacket",
+      "image": "catalog/item_003.jpg",
+      "price": "€89",
+      "prompt": "The person is wearing a classic denim jacket in medium blue wash. The jacket has a slightly fitted silhouette with button front closure, chest pockets, and side pockets. The denim has a natural, slightly worn-in appearance. Maintain the person's exact face, hair, skin tone, and body pose. Only change the clothing to show them wearing this denim jacket naturally."
+    }
+  ]
+}
