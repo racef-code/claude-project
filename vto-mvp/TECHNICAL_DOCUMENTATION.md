@@ -407,7 +407,7 @@ User          Browser(JS)        Flask Backend       Gemini API
 | Python | 3.8+ | Backend language |
 | Flask | 3.0.0 | Web framework, routing, HTTP handling |
 | google-generativeai | 0.8.0+ | Gemini API client |
-| Pillow (PIL) | 10.0.0 | Image processing, manipulation |
+| Pillow (PIL) | 11.0.0+ | Image processing, manipulation |
 | python-dotenv | 1.0.0 | Environment variable management |
 
 ### Frontend Technologies
