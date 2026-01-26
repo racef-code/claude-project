@@ -5,13 +5,22 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Virtual Try-On - MVP</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/playground.css') }}">
 </head>
 <body>
     <!-- Header -->
     <header>
         <div class="container">
-            <h1>Virtual Try-On</h1>
-            <p>See yourself in our collection</p>
+            <nav class="nav-bar">
+                <div class="nav-brand">
+                    <h1>Virtual Try-On</h1>
+                    <p>See yourself in our collection</p>
+                </div>
+                <div class="nav-links">
+                    <a href="/" class="nav-link active">Virtual Try-On</a>
+                    <a href="/playground" class="nav-link">Playground</a>
+                </div>
+            </nav>
         </div>
     </header>
 

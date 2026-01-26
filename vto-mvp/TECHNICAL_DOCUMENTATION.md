@@ -29,7 +29,7 @@ The Virtual Try-On MVP is a web-based application that uses artificial intellige
 
 - **Catalog Display**: Shows available garments in a responsive grid
 - **Photo Upload**: Accepts user photos via drag-drop or file selection
-- **AI Generation**: Uses Google Gemini 1.5 Flash to generate realistic try-on images
+- **AI Generation**: Uses Google Gemini 2.5 Flash Image (nano-banana) to generate realistic try-on images
 - **Comparison View**: Displays original photo alongside the try-on result
 - **Multi-Try**: Allows users to try multiple garments without re-uploading their photo
 
@@ -87,7 +87,7 @@ The Virtual Try-On MVP is a web-based application that uses artificial intellige
 ┌──────────────────────▼──────────────────────────────────────┐
 │                 GOOGLE GEMINI API                            │
 │  ┌──────────────────────────────────────────────────────┐  │
-│  │         Gemini 1.5 Flash Model                        │  │
+│  │         Gemini 2.5 Flash Image Model (nano-banana)    │  │
 │  │  - Receives: User photo + Garment photo + Prompt      │  │
 │  │  - Processes: AI image generation                     │  │
 │  │  - Returns: Generated try-on image                    │  │
@@ -213,7 +213,7 @@ User          Browser(JS)        Flask Backend       Gemini API
                             ┌──────────────────────▼────────┐
                             │    Google Gemini API          │
                             │                               │
-                            │  - Gemini 1.5 Flash Model     │
+                            │  - Gemini 2.5 Flash Image Model │
                             │  - Image Generation           │
                             └───────────────────────────────┘
 ```
@@ -424,7 +424,7 @@ User          Browser(JS)        Flask Backend       Gemini API
 
 | Service | Purpose |
 |---------|---------|
-| Google Gemini 1.5 Flash | AI image generation |
+| Google Gemini 2.5 Flash Image (nano-banana) | AI image generation |
 
 ### Development Tools
 
@@ -959,7 +959,7 @@ garment_img = Image.open(garment_path)
 **1. Initialize Model**
 ```python
 genai.configure(api_key=GOOGLE_API_KEY)
-model = genai.GenerativeModel("gemini-1.5-flash")
+model = genai.GenerativeModel("gemini-2.5-flash-image")
 ```
 
 **2. Construct Prompt**
@@ -1029,7 +1029,7 @@ return jsonify({
 
 ## AI Integration
 
-### Why Gemini 1.5 Flash?
+### Why Gemini 2.5 Flash Image?
 
 | Feature | Benefit |
 |---------|---------|
