@@ -62,7 +62,7 @@ function setupEventListeners() {
     closeBtn.onclick = closeModal;
     window.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-    uploadArea.onclick = () => { if (!userImageBase64) fileInput.click(); };
+    uploadArea.onclick = () => fileInput.click();
     fileInput.onchange = (e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); };
 
     uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); };
@@ -152,7 +152,14 @@ function showModalStep(step) {
 
 function resetModal() {
     selectedItemId = null;
+    userImageBase64 = null;
     generatedTryOnBase64 = null;
+    fileInput.value = '';
+    const preview = document.getElementById('uploadPreview');
+    preview.src = '';
+    preview.style.display = 'none';
+    document.querySelector('.upload-placeholder').style.display = '';
+    generateBtn.style.display = 'none';
     showModalStep('step1');
 }
 

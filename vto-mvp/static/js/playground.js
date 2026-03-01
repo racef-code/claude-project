@@ -4,7 +4,7 @@ let referenceImageBase64 = null;
 let maskImageBase64 = null;
 let styleImageBase64 = null;
 let generatedImageBase64 = null;
-let progressTimer = null;
+let progressInterval = null;
 let progressStart = null;
 
 // ── Mode Config ───────────────────────────────────────────────────────────────
@@ -453,12 +453,12 @@ function startProgress() {
     let statusIdx = 0;
 
     progressFill.style.width = '0%';
-    progressTimer.textContent = '0s';
+    if (progressTimer) progressTimer.textContent = '0s';
     if (progressStatus) progressStatus.textContent = statuses[0];
 
-    progressTimer._interval = setInterval(() => {
+    progressInterval = setInterval(() => {
         const elapsed = Math.floor((Date.now() - progressStart) / 1000);
-        progressTimer.textContent = elapsed + 's';
+        if (progressTimer) progressTimer.textContent = elapsed + 's';
 
         // Asymptotic approach to 90%
         pct = 90 * (1 - Math.exp(-elapsed / 25));
@@ -474,9 +474,9 @@ function startProgress() {
 }
 
 function stopProgress() {
-    if (progressTimer && progressTimer._interval) {
-        clearInterval(progressTimer._interval);
-        progressTimer._interval = null;
+    if (progressInterval) {
+        clearInterval(progressInterval);
+        progressInterval = null;
     }
     progressFill.style.width = '100%';
 }
