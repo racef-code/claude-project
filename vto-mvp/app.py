@@ -57,8 +57,7 @@ def extract_image_from_response(response):
     """Extract base64 image from new SDK response"""
     for part in response.parts:
         if part.inline_data:
-            image = part.as_image()
-            return pil_to_base64(image)
+            return base64.b64encode(part.inline_data.data).decode('utf-8')
     return None
 
 
