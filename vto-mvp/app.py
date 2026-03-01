@@ -156,7 +156,7 @@ Generate the try-on image now."""
         client = get_client()
 
         response = client.models.generate_content(
-            model='gemini-2.0-flash-exp-image-generation',
+            model='gemini-2.5-flash-image',
             contents=[prompt, user_img, garment_img],
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
@@ -248,7 +248,7 @@ def generate():
         negative_prompt = data.get('negative_prompt')
 
         # Settings - now all actually used
-        model_name = data.get('model', 'gemini-2.0-flash-exp-image-generation')
+        model_name = data.get('model', 'gemini-2.5-flash-image')
         aspect_ratio = data.get('aspect_ratio')
         image_size = data.get('image_size')
         temperature = data.get('temperature', 1.0)
@@ -386,7 +386,7 @@ Guidelines:
 
         client = get_client()
         response = client.models.generate_content(
-            model='gemini-2.0-flash-exp',
+            model='gemini-2.5-flash',
             contents=f"Optimize this image generation prompt: {user_prompt}",
             config=types.GenerateContentConfig(
                 system_instruction=system_instruction,

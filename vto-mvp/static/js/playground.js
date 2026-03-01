@@ -363,7 +363,7 @@ function toggleSettings() {
 }
 
 function validateImageSize() {
-    if (imageSizeSelect.value === '4K' && modelSelect.value !== 'gemini-3-pro-image-preview') {
+    if (imageSizeSelect.value === '4K' && !modelSelect.value.includes('pro')) {
         imageSizeSelect.value = '2K';
         showToast('4K is only available with NanoBanana Pro. Switched to 2K.', 'warning');
     }
