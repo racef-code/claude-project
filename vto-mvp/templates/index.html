@@ -3,12 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Virtual Try-On - MVP</title>
+    <title>Virtual Try-On</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/playground.css') }}">
 </head>
 <body>
-    <!-- Header -->
     <header>
         <div class="container">
             <nav class="nav-bar">
@@ -19,17 +18,14 @@
                 <div class="nav-links">
                     <a href="/" class="nav-link active">Virtual Try-On</a>
                     <a href="/playground" class="nav-link">Playground</a>
+                    <button id="themeToggle" class="theme-toggle" title="Toggle dark mode"></button>
                 </div>
             </nav>
         </div>
     </header>
 
-    <!-- Main Content -->
     <main class="container">
-        <!-- Catalog Grid -->
-        <div id="catalog" class="catalog-grid">
-            <!-- Catalog items will be loaded here by JavaScript -->
-        </div>
+        <div id="catalog" class="catalog-grid"></div>
     </main>
 
     <!-- Try-On Modal -->
@@ -37,55 +33,74 @@
         <div class="modal-content">
             <span class="close">&times;</span>
 
+            <!-- Step 1: Upload -->
             <div id="modalStep1" class="modal-step active">
                 <h2>Upload Your Photo</h2>
                 <p class="selected-item">Selected: <span id="selectedItemName"></span></p>
-
-                <!-- Upload Area -->
                 <div id="uploadArea" class="upload-area">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
                     <div class="upload-placeholder">
                         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-                            <polyline points="17 8 12 3 7 8"></polyline>
-                            <line x1="12" y1="3" x2="12" y2="15"></line>
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+                            <polyline points="17 8 12 3 7 8"/>
+                            <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
                         <p>Click to upload or drag and drop</p>
                         <p class="hint">JPG, PNG up to 10MB</p>
                     </div>
                     <img id="uploadPreview" class="upload-preview" style="display: none;">
                 </div>
-
                 <button id="generateBtn" class="btn btn-primary" style="display: none;">Generate Try-On</button>
             </div>
 
-            <!-- Loading State -->
+            <!-- Step 2: Loading -->
             <div id="modalLoading" class="modal-step">
                 <div class="loading-spinner"></div>
                 <p>Generating your try-on image...</p>
-                <p class="hint">This may take 10-20 seconds</p>
+                <div class="progress-bar-wrap" style="max-width:300px; margin: 0.5rem auto;">
+                    <div class="progress-bar-fill" id="tryOnProgressFill"></div>
+                </div>
+                <div class="progress-info" style="max-width:300px; margin: 0 auto;">
+                    <span>NanoBanana is working...</span>
+                    <span id="tryOnTimer">0s</span>
+                </div>
+                <p class="hint" style="margin-top:0.5rem;">This may take 10-20 seconds</p>
             </div>
 
-            <!-- Results -->
+            <!-- Step 3: Results with comparison slider -->
             <div id="modalResults" class="modal-step">
                 <h2>Your Virtual Try-On</h2>
-                <div class="results-container">
-                    <div class="result-image">
-                        <h3>Original</h3>
-                        <img id="originalImage" alt="Original photo">
+                <p class="hint" style="margin-bottom:1rem; color: var(--text-muted);">Drag the handle to compare before / after</p>
+
+                <div id="comparisonSlider" class="comparison-slider" style="height: 400px; margin-bottom: 1.5rem;">
+                    <div class="comparison-before">
+                        <img id="originalImage" alt="Original photo" style="width:100%;height:400px;object-fit:cover;">
+                        <span class="comparison-label">Before</span>
                     </div>
-                    <div class="result-image">
-                        <h3>Try-On Result</h3>
-                        <img id="generatedImage" alt="Generated try-on">
+                    <div class="comparison-after">
+                        <img id="generatedImage" alt="Generated try-on" style="width:100%;height:400px;object-fit:cover;">
+                        <span class="comparison-label">After</span>
+                    </div>
+                    <div class="comparison-handle">
+                        <div class="comparison-handle-line"></div>
+                        <div class="comparison-handle-circle">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+                                <polyline points="15 18 9 12 15 6"/>
+                                <polyline points="9 6 15 12 9 18" style="transform:translateX(6px)"/>
+                            </svg>
+                        </div>
+                        <div class="comparison-handle-line"></div>
                     </div>
                 </div>
+
                 <div class="result-actions">
-                    <button id="tryAnotherBtn" class="btn btn-secondary">Try Another Item</button>
+                    <button id="downloadResultBtn" class="btn btn-secondary">Download Result</button>
+                    <button id="tryAnotherBtn" class="btn btn-secondary">Try Another</button>
                     <button id="closeResultsBtn" class="btn btn-primary">Close</button>
                 </div>
             </div>
 
-            <!-- Error State -->
+            <!-- Step 4: Error -->
             <div id="modalError" class="modal-step">
                 <div class="error-message">
                     <h2>Oops!</h2>
@@ -96,6 +111,8 @@
         </div>
     </div>
 
+    <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>

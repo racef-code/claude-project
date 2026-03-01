@@ -2,36 +2,40 @@ import os
 import json
 import base64
 import io
-from flask import Flask, render_template, request, jsonify
+import uuid
+import time
+import random
+from flask import Flask, render_template, request, jsonify, session
 from dotenv import load_dotenv
 from PIL import Image
 
-# Original Google GenAI SDK
-import google.generativeai as genai
+# New Google Gen AI SDK
+from google import genai
+from google.genai import types
 
 # Load environment variables
 load_dotenv()
 
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
+app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
 
 # Configure Gemini API
 GOOGLE_API_KEY = os.getenv("GOOGLE_API_KEY")
 if not GOOGLE_API_KEY:
     print("WARNING: GOOGLE_API_KEY not found in .env file")
-else:
-    genai.configure(api_key=GOOGLE_API_KEY)
 
 # Load catalog
 with open('catalog.json', 'r') as f:
     catalog_data = json.load(f)
 
+# In-memory generation history (per session, max 20 items)
+generation_history = {}
 
-def pil_to_bytes(pil_image):
-    """Convert PIL Image to bytes"""
-    buffer = io.BytesIO()
-    pil_image.save(buffer, format='PNG')
-    return buffer.getvalue()
+
+def get_client():
+    """Get a configured Gemini client"""
+    return genai.Client(api_key=GOOGLE_API_KEY)
 
 
 def decode_base64_image(image_b64):
@@ -42,34 +46,72 @@ def decode_base64_image(image_b64):
     return Image.open(io.BytesIO(image_bytes))
 
 
+def pil_to_base64(pil_image):
+    """Convert PIL Image to base64 string"""
+    buffer = io.BytesIO()
+    pil_image.save(buffer, format='PNG')
+    return base64.b64encode(buffer.getvalue()).decode('utf-8')
+
+
+def extract_image_from_response(response):
+    """Extract base64 image from new SDK response"""
+    for part in response.parts:
+        if part.inline_data:
+            image = part.as_image()
+            return pil_to_base64(image)
+    return None
+
+
+def get_session_id():
+    """Get or create a session ID"""
+    if 'session_id' not in session:
+        session['session_id'] = str(uuid.uuid4())
+    return session['session_id']
+
+
+def save_to_history(session_id, entry):
+    """Save a generation to history"""
+    if session_id not in generation_history:
+        generation_history[session_id] = []
+    generation_history[session_id].insert(0, entry)
+    generation_history[session_id] = generation_history[session_id][:20]
+
+
 @app.route('/')
 def index():
-    """Render the main page"""
     return render_template('index.html')
 
 
 @app.route('/playground')
 def playground():
-    """Render the playground page for direct prompting"""
     return render_template('playground.html')
 
 
 @app.route('/catalog')
 def get_catalog():
-    """Get catalog items"""
     return jsonify(catalog_data)
+
+
+@app.route('/history', methods=['GET'])
+def get_history():
+    session_id = get_session_id()
+    history = generation_history.get(session_id, [])
+    # Return without full image data for listing (just thumbnail info)
+    return jsonify(history)
+
+
+@app.route('/history', methods=['DELETE'])
+def clear_history():
+    session_id = get_session_id()
+    if session_id in generation_history:
+        del generation_history[session_id]
+    return jsonify({'success': True})
 
 
 @app.route('/try-on', methods=['POST'])
 def try_on():
-    """
-    Handle virtual try-on request
-    Expects: user_image (base64), item_id
-    Returns: generated image as base64
-    """
     try:
         data = request.get_json()
-
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
@@ -79,28 +121,22 @@ def try_on():
         if not user_image_b64 or not item_id:
             return jsonify({'error': 'Missing user_image or item_id'}), 400
 
-        # Find item in catalog
         item = next((i for i in catalog_data['items'] if i['id'] == item_id), None)
         if not item:
             return jsonify({'error': f'Item {item_id} not found in catalog'}), 404
 
+        if not GOOGLE_API_KEY:
+            return jsonify({'error': 'GOOGLE_API_KEY not configured'}), 500
+
         print(f"Processing try-on for item: {item['name']}")
 
-        # Check if API key is configured
-        if not GOOGLE_API_KEY:
-            return jsonify({'error': 'GOOGLE_API_KEY not configured. Please add it to your .env file'}), 500
-
-        # Decode user image
         user_img = decode_base64_image(user_image_b64)
 
-        # Load garment image
         garment_path = os.path.join('static', item['image'])
         if not os.path.exists(garment_path):
             return jsonify({'error': f'Garment image not found: {garment_path}'}), 404
-
         garment_img = Image.open(garment_path)
 
-        # Construct prompt for Gemini
         prompt = f"""You are a virtual try-on assistant. Your task is to show how a person would look wearing a specific garment.
 
 INSTRUCTIONS:
@@ -116,42 +152,38 @@ GARMENT DETAILS:
 
 Generate the try-on image now."""
 
-        print("Calling Gemini API...")
+        print("Calling Gemini API (NanoBanana 2)...")
+        client = get_client()
 
-        # Create model and generate content
-        model = genai.GenerativeModel("gemini-2.0-flash-exp-image-generation")
-
-        response = model.generate_content(
-            [prompt, user_img, garment_img],
-            generation_config=genai.GenerationConfig(
-                response_mime_type="text/plain"
-            )
+        response = client.models.generate_content(
+            model='gemini-2.0-flash-exp-image-generation',
+            contents=[prompt, user_img, garment_img],
+            config=types.GenerateContentConfig(
+                response_modalities=["IMAGE"],
+                image_config=types.ImageConfig(aspect_ratio="3:4"),
+            ),
         )
 
-        print("Gemini API response received")
-
-        # Extract generated image from response
-        generated_image_b64 = None
-
-        if response.candidates and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    image_data = part.inline_data.data
-                    if isinstance(image_data, bytes):
-                        generated_image_b64 = base64.b64encode(image_data).decode('utf-8')
-                    else:
-                        generated_image_b64 = image_data
-                    break
+        generated_image_b64 = extract_image_from_response(response)
 
         if not generated_image_b64:
-            print("No image found in response")
             return jsonify({'error': 'No image generated by the model.'}), 500
 
         print("Successfully generated try-on image")
 
+        # Save to history
+        session_id = get_session_id()
+        save_to_history(session_id, {
+            'id': str(uuid.uuid4()),
+            'timestamp': time.time(),
+            'mode': 'virtual-try-on',
+            'prompt': item['name'],
+            'image': f'data:image/png;base64,{generated_image_b64}',
+        })
+
         return jsonify({
             'success': True,
-            'generated_image': f'data:image/jpeg;base64,{generated_image_b64}',
+            'generated_image': f'data:image/png;base64,{generated_image_b64}',
             'item_name': item['name']
         })
 
@@ -162,165 +194,153 @@ Generate the try-on image now."""
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
-def build_mode_prompt(mode, user_prompt):
+def build_mode_prompt(mode, user_prompt, negative_prompt=None):
     """Build the appropriate prompt based on the generation mode"""
     mode_prompts = {
         'text-to-image': user_prompt,
-
-        'image-editing': f"""You are an image editing assistant. Your task is to modify the provided image according to the user's instructions.
-
-INSTRUCTIONS:
-{user_prompt}
-
-Apply the requested changes to the image while preserving the overall composition and quality. Make the edits look natural and seamless.""",
-
-        'style-transfer': f"""You are a style transfer assistant. Your task is to apply the artistic style from the style reference image to the content image.
+        'image-editing': f"""You are an image editing assistant. Modify the provided image according to the instructions below.
 
 INSTRUCTIONS:
 {user_prompt}
 
-The first image is the content to preserve. The second image is the style reference.
-Apply the artistic style (colors, textures, brush strokes, artistic techniques) from the style reference to the content image while preserving the structure and subjects of the content image.""",
-
-        'inpainting': f"""You are an image inpainting assistant. Your task is to fill in or replace the masked area of the image.
-
-The image has a mask where white areas indicate regions to be modified/filled and black areas should be preserved.
+Apply the changes naturally and seamlessly while preserving the overall composition and quality.""",
+        'style-transfer': f"""You are a style transfer assistant. Apply the artistic style from the style reference image to the content image.
 
 INSTRUCTIONS:
 {user_prompt}
 
-Fill the masked area with content that:
-1. Matches the user's description
-2. Blends seamlessly with the surrounding image
-3. Maintains consistent lighting, perspective, and style""",
+The first image is the content. The second image is the style reference.
+Preserve the structure of the content image while applying the colors, textures, and artistic techniques from the style reference.""",
+        'inpainting': f"""You are an image inpainting assistant. Fill in the masked area of the image.
 
-        'outpainting': f"""You are an image outpainting assistant. Your task is to extend the image beyond its original boundaries.
-
-The mask indicates the new area to generate (white) while preserving the original image (black).
+White areas in the mask = regions to modify. Black areas = preserve as-is.
 
 INSTRUCTIONS:
 {user_prompt}
 
-Extend the image by:
-1. Generating content that logically continues the scene
-2. Matching the style, lighting, and perspective of the original
-3. Creating a seamless transition between original and new content"""
+Fill the masked area with content that blends seamlessly with the surrounding image.""",
+        'outpainting': f"""You are an image outpainting assistant. Extend the image beyond its original boundaries.
+
+INSTRUCTIONS:
+{user_prompt}
+
+Generate content that logically continues the scene, matching the style, lighting, and perspective of the original."""
     }
 
-    return mode_prompts.get(mode, user_prompt)
+    result = mode_prompts.get(mode, user_prompt)
+    if negative_prompt:
+        result += f"\n\nIMPORTANT - Avoid the following: {negative_prompt}"
+    return result
 
 
 @app.route('/generate', methods=['POST'])
 def generate():
-    """
-    Handle direct image generation request
-    Supports multiple modes: text-to-image, image-editing, style-transfer, inpainting, outpainting
-    """
     try:
         data = request.get_json()
-
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
         user_prompt = data.get('prompt')
         mode = data.get('mode', 'text-to-image')
-        image_b64 = data.get('image')  # Source image
-        mask_b64 = data.get('mask')  # Mask for inpainting/outpainting
-        style_b64 = data.get('style_image')  # Style reference for style transfer
+        image_b64 = data.get('image')
+        mask_b64 = data.get('mask')
+        style_b64 = data.get('style_image')
+        negative_prompt = data.get('negative_prompt')
 
-        # Settings (kept for UI compatibility, but may not all be supported by the model)
+        # Settings - now all actually used
         model_name = data.get('model', 'gemini-2.0-flash-exp-image-generation')
+        aspect_ratio = data.get('aspect_ratio')
+        image_size = data.get('image_size')
+        temperature = data.get('temperature', 1.0)
+        seed = data.get('seed')
 
         if not user_prompt:
             return jsonify({'error': 'Missing prompt'}), 400
 
-        print(f"Processing {mode} request with prompt: {user_prompt[:100]}...")
-        print(f"Settings: model={model_name}")
-
-        # Check if API key is configured
         if not GOOGLE_API_KEY:
-            return jsonify({'error': 'GOOGLE_API_KEY not configured. Please add it to your .env file'}), 500
+            return jsonify({'error': 'GOOGLE_API_KEY not configured'}), 500
 
-        # Build the mode-specific prompt
-        prompt = build_mode_prompt(mode, user_prompt)
+        print(f"Processing {mode} | model={model_name} | aspect={aspect_ratio} | size={image_size} | temp={temperature}")
 
-        # Build content list
+        prompt = build_mode_prompt(mode, user_prompt, negative_prompt)
         contents = [prompt]
 
         # Add images based on mode
         if mode == 'text-to-image':
             if image_b64:
-                img = decode_base64_image(image_b64)
-                contents.append(img)
-
+                contents.append(decode_base64_image(image_b64))
         elif mode == 'image-editing':
             if not image_b64:
                 return jsonify({'error': 'Source image required for image editing mode'}), 400
-            img = decode_base64_image(image_b64)
-            contents.append(img)
-
+            contents.append(decode_base64_image(image_b64))
         elif mode == 'style-transfer':
             if not image_b64:
                 return jsonify({'error': 'Content image required for style transfer mode'}), 400
             if not style_b64:
                 return jsonify({'error': 'Style reference image required for style transfer mode'}), 400
-            content_img = decode_base64_image(image_b64)
-            style_img = decode_base64_image(style_b64)
-            contents.append(content_img)
-            contents.append(style_img)
-
+            contents.append(decode_base64_image(image_b64))
+            contents.append(decode_base64_image(style_b64))
         elif mode in ['inpainting', 'outpainting']:
             if not image_b64:
                 return jsonify({'error': f'Source image required for {mode} mode'}), 400
             if not mask_b64:
                 return jsonify({'error': f'Mask image required for {mode} mode'}), 400
-            source_img = decode_base64_image(image_b64)
-            mask_img = decode_base64_image(mask_b64)
-            contents.append(source_img)
-            contents.append(mask_img)
+            contents.append(decode_base64_image(image_b64))
+            contents.append(decode_base64_image(mask_b64))
+
+        # Build image config
+        image_config_kwargs = {}
+        if aspect_ratio:
+            image_config_kwargs['aspect_ratio'] = aspect_ratio
+        if image_size:
+            image_config_kwargs['image_size'] = image_size
+
+        # Build generation config
+        config_kwargs = {
+            'response_modalities': ["IMAGE"],
+            'temperature': float(temperature),
+        }
+        if image_config_kwargs:
+            config_kwargs['image_config'] = types.ImageConfig(**image_config_kwargs)
+        if seed is not None:
+            config_kwargs['seed'] = int(seed)
 
         print("Calling Gemini API...")
+        client = get_client()
 
-        # Create model
-        model = genai.GenerativeModel(model_name)
-
-        # Generate content
-        response = model.generate_content(
-            contents,
-            generation_config=genai.GenerationConfig(
-                response_mime_type="text/plain"
-            )
+        response = client.models.generate_content(
+            model=model_name,
+            contents=contents,
+            config=types.GenerateContentConfig(**config_kwargs),
         )
 
-        print("Gemini API response received")
-
-        # Extract generated image from response
-        generated_image_b64 = None
-        response_text = None
-
-        if response.candidates and response.candidates[0].content.parts:
-            for part in response.candidates[0].content.parts:
-                if hasattr(part, 'inline_data') and part.inline_data:
-                    image_data = part.inline_data.data
-                    if isinstance(image_data, bytes):
-                        generated_image_b64 = base64.b64encode(image_data).decode('utf-8')
-                    else:
-                        generated_image_b64 = image_data
-                elif hasattr(part, 'text') and part.text:
-                    response_text = part.text
+        generated_image_b64 = extract_image_from_response(response)
 
         if not generated_image_b64:
+            # Try to get text response for debugging
+            text_parts = [p.text for p in response.parts if hasattr(p, 'text') and p.text]
             error_msg = 'No image generated by the model.'
-            if response_text:
-                error_msg += f' Model response: {response_text}'
-            print(error_msg)
+            if text_parts:
+                error_msg += f' Model response: {" ".join(text_parts)}'
             return jsonify({'error': error_msg}), 500
 
-        print(f"Successfully generated image using {mode} mode")
+        print(f"Successfully generated image | mode={mode}")
+
+        # Save to history
+        session_id = get_session_id()
+        save_to_history(session_id, {
+            'id': str(uuid.uuid4()),
+            'timestamp': time.time(),
+            'mode': mode,
+            'prompt': user_prompt[:200],
+            'model': model_name,
+            'settings': {'aspect_ratio': aspect_ratio, 'image_size': image_size},
+            'image': f'data:image/png;base64,{generated_image_b64}',
+        })
 
         return jsonify({
             'success': True,
-            'generated_image': f'data:image/jpeg;base64,{generated_image_b64}',
+            'generated_image': f'data:image/png;base64,{generated_image_b64}',
             'mode': mode
         })
 
@@ -331,11 +351,59 @@ def generate():
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
+@app.route('/optimize-prompt', methods=['POST'])
+def optimize_prompt():
+    """Use Gemini text model to enhance the user's prompt for better image generation"""
+    try:
+        data = request.get_json()
+        user_prompt = data.get('prompt', '').strip()
+        mode = data.get('mode', 'text-to-image')
+
+        if not user_prompt:
+            return jsonify({'error': 'Missing prompt'}), 400
+
+        if not GOOGLE_API_KEY:
+            return jsonify({'error': 'GOOGLE_API_KEY not configured'}), 500
+
+        mode_guidelines = {
+            'text-to-image': 'Add lighting, composition, artistic style, mood, camera angle, depth of field, quality indicators (4K, highly detailed, professional photography).',
+            'image-editing': 'Be precise about the changes. Specify areas, colors, styles. Keep edits targeted and clear.',
+            'style-transfer': 'Describe the style transfer clearly. Mention artistic movement, technique, brush strokes, color palette.',
+            'inpainting': 'Describe exactly what should fill the masked area. Match surrounding context, lighting, perspective.',
+            'outpainting': 'Describe what continues beyond the borders. Match the existing scene logically.'
+        }
+
+        system_instruction = f"""You are an expert at writing prompts for AI image generation (NanoBanana/Gemini).
+Mode: {mode}
+
+Transform the user's prompt into a detailed, effective prompt for high-quality image generation.
+
+Guidelines:
+- {mode_guidelines.get(mode, 'Add specific visual details, lighting, composition, style, mood.')}
+- Keep the core intent of the original prompt
+- Max 200 words
+- Return ONLY the optimized prompt, nothing else"""
+
+        client = get_client()
+        response = client.models.generate_content(
+            model='gemini-2.0-flash-exp',
+            contents=f"Optimize this image generation prompt: {user_prompt}",
+            config=types.GenerateContentConfig(
+                system_instruction=system_instruction,
+                temperature=0.7,
+            ),
+        )
+
+        optimized = response.text.strip()
+        return jsonify({'success': True, 'optimized_prompt': optimized})
+
+    except Exception as e:
+        print(f"Error in optimize-prompt: {str(e)}")
+        return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
 if __name__ == '__main__':
-    # Check if .env exists
     if not os.path.exists('.env'):
         print("\nWARNING: .env file not found!")
-        print("Please create a .env file with your GOOGLE_API_KEY")
-        print("You can copy .env.example to .env and add your API key\n")
-
+        print("Please create a .env file with your GOOGLE_API_KEY\n")
     app.run(debug=True, host='0.0.0.0', port=5000)

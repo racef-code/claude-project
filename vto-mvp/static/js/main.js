@@ -1,53 +1,50 @@
-// Global state
+// ── State ─────────────────────────────────────────────────────────────────────
 let selectedItemId = null;
 let userImageBase64 = null;
+let generatedTryOnBase64 = null;
+let tryOnTimerInterval = null;
+let tryOnProgressStart = null;
+let sliderDragging = false;
 
-// DOM elements
-const modal = document.getElementById('tryOnModal');
-const closeBtn = document.querySelector('.close');
-const fileInput = document.getElementById('fileInput');
+// ── DOM ───────────────────────────────────────────────────────────────────────
+const modal      = document.getElementById('tryOnModal');
+const closeBtn   = document.querySelector('.close');
+const fileInput  = document.getElementById('fileInput');
 const uploadArea = document.getElementById('uploadArea');
-const uploadPreview = document.getElementById('uploadPreview');
 const generateBtn = document.getElementById('generateBtn');
 
-// Modal steps
-const modalStep1 = document.getElementById('modalStep1');
+const modalStep1   = document.getElementById('modalStep1');
 const modalLoading = document.getElementById('modalLoading');
 const modalResults = document.getElementById('modalResults');
-const modalError = document.getElementById('modalError');
+const modalError   = document.getElementById('modalError');
 
-// Initialize app
+// ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     loadCatalog();
     setupEventListeners();
 });
 
-// Load catalog from backend
+// ── Catalog ───────────────────────────────────────────────────────────────────
 async function loadCatalog() {
     try {
         const response = await fetch('/catalog');
         const data = await response.json();
-
         const catalogGrid = document.getElementById('catalog');
         catalogGrid.innerHTML = '';
-
-        data.items.forEach(item => {
-            const itemElement = createCatalogItem(item);
-            catalogGrid.appendChild(itemElement);
-        });
+        data.items.forEach(item => catalogGrid.appendChild(createCatalogItem(item)));
     } catch (error) {
         console.error('Error loading catalog:', error);
-        alert('Failed to load catalog. Please refresh the page.');
+        showToast('Failed to load catalog. Please refresh the page.', 'error');
     }
 }
 
-// Create catalog item HTML
 function createCatalogItem(item) {
     const div = document.createElement('div');
     div.className = 'catalog-item';
     div.innerHTML = `
         <div class="catalog-item-image">
-            <img src="/static/${item.image}" alt="${item.name}" onerror="this.parentElement.innerHTML='<div style=\\"display:flex;align-items:center;justify-content:center;height:100%;background:#f0f0f0;color:#999;font-size:1rem;\\">Image Coming Soon</div>'">
+            <img src="/static/${item.image}" alt="${item.name}"
+                 onerror="this.parentElement.innerHTML='<div style=\\"display:flex;align-items:center;justify-content:center;height:100%;background:var(--bg-tertiary);color:var(--text-muted);font-size:1rem;\\">Image Coming Soon</div>'">
         </div>
         <div class="catalog-item-info">
             <div class="catalog-item-name">${item.name}</div>
@@ -60,191 +57,225 @@ function createCatalogItem(item) {
     return div;
 }
 
-// Setup event listeners
+// ── Event Listeners ───────────────────────────────────────────────────────────
 function setupEventListeners() {
-    // Close modal
     closeBtn.onclick = closeModal;
-    window.onclick = (event) => {
-        if (event.target === modal) {
-            closeModal();
-        }
-    };
+    window.onclick = (e) => { if (e.target === modal) closeModal(); };
 
-    // Upload area click
-    uploadArea.onclick = () => fileInput.click();
+    uploadArea.onclick = () => { if (!userImageBase64) fileInput.click(); };
+    fileInput.onchange = (e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); };
 
-    // File input change
-    fileInput.onchange = (e) => {
-        const file = e.target.files[0];
-        if (file) {
-            handleFileUpload(file);
-        }
-    };
-
-    // Drag and drop
-    uploadArea.ondragover = (e) => {
-        e.preventDefault();
-        uploadArea.classList.add('drag-over');
-    };
-
-    uploadArea.ondragleave = () => {
-        uploadArea.classList.remove('drag-over');
-    };
-
+    uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); };
+    uploadArea.ondragleave = () => uploadArea.classList.remove('drag-over');
     uploadArea.ondrop = (e) => {
         e.preventDefault();
         uploadArea.classList.remove('drag-over');
         const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) {
-            handleFileUpload(file);
-        }
+        if (file && file.type.startsWith('image/')) handleFileUpload(file);
     };
 
-    // Generate button
     generateBtn.onclick = generateTryOn;
 
-    // Try another button
     document.getElementById('tryAnotherBtn').onclick = () => {
         resetModal();
         closeModal();
     };
-
-    // Close results button
     document.getElementById('closeResultsBtn').onclick = closeModal;
+    document.getElementById('retryBtn').onclick = () => showModalStep('step1');
 
-    // Retry button
-    document.getElementById('retryBtn').onclick = () => {
-        showModalStep('step1');
+    document.getElementById('downloadResultBtn').onclick = () => {
+        if (!generatedTryOnBase64) return;
+        const a = document.createElement('a');
+        a.href = generatedTryOnBase64;
+        a.download = `nanobanana-tryon-${Date.now()}.png`;
+        a.click();
+        showToast('Image downloaded!', 'success');
     };
 }
 
-// Open try-on modal
-function openTryOnModal(itemId, itemName) {
-    selectedItemId = itemId;
-    document.getElementById('selectedItemName').textContent = itemName;
-    modal.classList.add('active');
-    showModalStep('step1');
-
-    // If user already uploaded image, show it
-    if (userImageBase64) {
-        uploadPreview.src = userImageBase64;
-        uploadPreview.style.display = 'block';
-        document.querySelector('.upload-placeholder').style.display = 'none';
-        generateBtn.style.display = 'block';
-    }
-}
-
-// Close modal
-function closeModal() {
-    modal.classList.remove('active');
-}
-
-// Handle file upload
+// ── File Upload ───────────────────────────────────────────────────────────────
 function handleFileUpload(file) {
-    // Validate file size (10MB)
     if (file.size > 10 * 1024 * 1024) {
-        alert('File size must be less than 10MB');
+        showToast('File size must be less than 10MB', 'error');
         return;
     }
-
-    // Validate file type
     if (!file.type.startsWith('image/')) {
-        alert('Please upload an image file');
+        showToast('Please upload an image file', 'error');
         return;
     }
-
     const reader = new FileReader();
     reader.onload = (e) => {
         userImageBase64 = e.target.result;
-        uploadPreview.src = userImageBase64;
-        uploadPreview.style.display = 'block';
+        const preview = document.getElementById('uploadPreview');
+        preview.src = userImageBase64;
+        preview.style.display = 'block';
         document.querySelector('.upload-placeholder').style.display = 'none';
         generateBtn.style.display = 'block';
     };
     reader.readAsDataURL(file);
 }
 
-// Generate try-on
-async function generateTryOn() {
-    if (!userImageBase64 || !selectedItemId) {
-        alert('Please upload a photo first');
-        return;
-    }
+// ── Modal ─────────────────────────────────────────────────────────────────────
+function openTryOnModal(itemId, itemName) {
+    selectedItemId = itemId;
+    document.getElementById('selectedItemName').textContent = itemName;
+    modal.classList.add('active');
+    showModalStep('step1');
 
-    console.log('Starting try-on generation...');
-    showModalStep('loading');
-
-    try {
-        const response = await fetch('/try-on', {
-            method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                user_image: userImageBase64,
-                item_id: selectedItemId
-            })
-        });
-
-        const data = await response.json();
-
-        if (!response.ok) {
-            throw new Error(data.error || 'Failed to generate try-on');
-        }
-
-        if (data.success) {
-            console.log('Try-on generated successfully');
-            displayResults(data.generated_image);
-        } else {
-            throw new Error(data.error || 'Unknown error occurred');
-        }
-    } catch (error) {
-        console.error('Error generating try-on:', error);
-        showError(error.message);
+    if (userImageBase64) {
+        const preview = document.getElementById('uploadPreview');
+        preview.src = userImageBase64;
+        preview.style.display = 'block';
+        document.querySelector('.upload-placeholder').style.display = 'none';
+        generateBtn.style.display = 'block';
     }
 }
 
-// Display results
-function displayResults(generatedImageBase64) {
-    document.getElementById('originalImage').src = userImageBase64;
-    document.getElementById('generatedImage').src = generatedImageBase64;
-    showModalStep('results');
+function closeModal() {
+    modal.classList.remove('active');
+    stopTryOnProgress();
 }
 
-// Show error
-function showError(message) {
-    document.getElementById('errorText').textContent = message;
-    showModalStep('error');
-}
-
-// Show modal step
 function showModalStep(step) {
-    // Hide all steps
     modalStep1.classList.remove('active');
     modalLoading.classList.remove('active');
     modalResults.classList.remove('active');
     modalError.classList.remove('active');
 
-    // Show selected step
     switch (step) {
-        case 'step1':
-            modalStep1.classList.add('active');
-            break;
-        case 'loading':
-            modalLoading.classList.add('active');
-            break;
-        case 'results':
-            modalResults.classList.add('active');
-            break;
-        case 'error':
-            modalError.classList.add('active');
-            break;
+        case 'step1':   modalStep1.classList.add('active');   break;
+        case 'loading': modalLoading.classList.add('active'); break;
+        case 'results': modalResults.classList.add('active'); break;
+        case 'error':   modalError.classList.add('active');   break;
     }
 }
 
-// Reset modal
 function resetModal() {
-    // Don't reset userImageBase64 - keep it cached
     selectedItemId = null;
+    generatedTryOnBase64 = null;
     showModalStep('step1');
+}
+
+// ── Progress ──────────────────────────────────────────────────────────────────
+function startTryOnProgress() {
+    tryOnProgressStart = Date.now();
+    const fill  = document.getElementById('tryOnProgressFill');
+    const timer = document.getElementById('tryOnTimer');
+
+    if (fill) fill.style.width = '0%';
+    if (timer) timer.textContent = '0s';
+
+    tryOnTimerInterval = setInterval(() => {
+        const elapsed = Math.floor((Date.now() - tryOnProgressStart) / 1000);
+        if (timer) timer.textContent = elapsed + 's';
+        if (fill) {
+            const pct = 90 * (1 - Math.exp(-elapsed / 20));
+            fill.style.width = pct.toFixed(1) + '%';
+        }
+    }, 500);
+}
+
+function stopTryOnProgress() {
+    if (tryOnTimerInterval) {
+        clearInterval(tryOnTimerInterval);
+        tryOnTimerInterval = null;
+    }
+    const fill = document.getElementById('tryOnProgressFill');
+    if (fill) fill.style.width = '100%';
+}
+
+// ── Generate Try-On ───────────────────────────────────────────────────────────
+async function generateTryOn() {
+    if (!userImageBase64 || !selectedItemId) {
+        showToast('Please upload a photo first', 'warning');
+        return;
+    }
+
+    showModalStep('loading');
+    startTryOnProgress();
+
+    try {
+        const response = await fetch('/try-on', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ user_image: userImageBase64, item_id: selectedItemId })
+        });
+
+        const data = await response.json();
+
+        if (!response.ok) throw new Error(data.error || 'Failed to generate try-on');
+
+        if (data.success) {
+            generatedTryOnBase64 = data.generated_image;
+            displayResults(data.generated_image);
+            showToast('Try-on complete!', 'success');
+        } else {
+            throw new Error(data.error || 'Unknown error occurred');
+        }
+    } catch (error) {
+        console.error('Try-on error:', error);
+        document.getElementById('errorText').textContent = error.message;
+        showModalStep('error');
+        showToast('Try-on failed: ' + error.message, 'error');
+    } finally {
+        stopTryOnProgress();
+    }
+}
+
+// ── Results + Comparison Slider ───────────────────────────────────────────────
+function displayResults(generatedBase64) {
+    const originalImg  = document.getElementById('originalImage');
+    const generatedImg = document.getElementById('generatedImage');
+
+    originalImg.src  = userImageBase64;
+    generatedImg.src = generatedBase64;
+
+    showModalStep('results');
+
+    // Init slider after images load
+    Promise.all([
+        new Promise(r => { if (originalImg.complete)  r(); else originalImg.onload  = r; }),
+        new Promise(r => { if (generatedImg.complete) r(); else generatedImg.onload = r; })
+    ]).then(() => initComparisonSlider());
+}
+
+function initComparisonSlider() {
+    const slider = document.getElementById('comparisonSlider');
+    const after  = slider.querySelector('.comparison-after');
+    const handle = slider.querySelector('.comparison-handle');
+
+    if (!slider || !after || !handle) return;
+
+    let position = 50; // percent
+
+    function setPosition(pct) {
+        position = Math.max(0, Math.min(100, pct));
+        after.style.clipPath  = `inset(0 ${100 - position}% 0 0)`;
+        handle.style.left     = position + '%';
+    }
+
+    setPosition(50);
+
+    function getX(e) {
+        return e.touches ? e.touches[0].clientX : e.clientX;
+    }
+
+    function onMove(e) {
+        if (!sliderDragging) return;
+        e.preventDefault();
+        const rect = slider.getBoundingClientRect();
+        const pct  = ((getX(e) - rect.left) / rect.width) * 100;
+        setPosition(pct);
+    }
+
+    handle.addEventListener('mousedown',  (e) => { sliderDragging = true; e.preventDefault(); });
+    handle.addEventListener('touchstart', (e) => { sliderDragging = true; }, { passive: true });
+    slider.addEventListener('mousedown',  (e) => { sliderDragging = true; onMove(e); });
+    slider.addEventListener('touchstart', (e) => { sliderDragging = true; onMove(e); }, { passive: true });
+
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('touchmove', onMove, { passive: false });
+
+    document.addEventListener('mouseup',   () => { sliderDragging = false; });
+    document.addEventListener('touchend',  () => { sliderDragging = false; });
 }
