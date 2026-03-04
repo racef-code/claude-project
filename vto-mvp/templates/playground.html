@@ -90,11 +90,11 @@
                             <div class="setting-group">
                                 <label for="modelSelect">Model</label>
                                 <select id="modelSelect">
-                                    <option value="gemini-2.5-flash-image" selected>NanoBanana Flash (Fast)</option>
-                                    <option value="gemini-3.1-flash-image-preview">NanoBanana 3.1 Flash (Better)</option>
-                                    <option value="gemini-3-pro-image-preview">NanoBanana Pro (Best quality)</option>
+                                    <option value="gemini-2.5-flash-image" selected>⚡ NanoBanana 1 — Flash (Rapide)</option>
+                                    <option value="gemini-3.1-flash-image-preview">✨ NanoBanana 2 — Flash (Meilleure qualité)</option>
+                                    <option value="gemini-3-pro-image-preview">🏆 NanoBanana Pro (Qualité maximale)</option>
                                 </select>
-                                <p class="setting-hint">Pro = highest quality, Flash = fastest</p>
+                                <p class="setting-hint">⚡ Rapide · ✨ Équilibré · 🏆 Qualité max</p>
                             </div>
 
                             <!-- Aspect Ratio -->
@@ -173,20 +173,153 @@
                         </div>
                     </div>
 
-                    <!-- Mask Image -->
+                    <!-- Inpaint Canvas -->
                     <div class="image-upload-section" id="maskImageSection" style="display: none;">
-                        <h3>Mask Image <span class="required-badge">Required</span></h3>
-                        <p class="setting-hint">White = modify &nbsp;|&nbsp; Black = preserve</p>
-                        <div id="maskUploadArea" class="image-upload-area mask-upload">
-                            <input type="file" id="maskInput" accept="image/*" style="display: none;">
-                            <div id="maskPlaceholder" class="upload-placeholder">
-                                <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" stroke-dasharray="4 2"/><rect x="8" y="8" width="8" height="8" fill="currentColor" opacity="0.3"/></svg>
-                                <p>Click to add mask image</p>
-                                <p class="hint">Black & white mask</p>
+                        <div class="inpaint-header">
+                            <h3>Paint Mask <span class="required-badge">Required</span></h3>
+                            <p class="setting-hint">Paint black over the area you want the AI to modify</p>
+                        </div>
+
+                        <!-- Canvas toolbar -->
+                        <div class="inpaint-toolbar">
+                            <div class="inpaint-tool-group">
+                                <button class="inpaint-tool active" id="brushTool" title="Soft brush">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+                                    Brush
+                                </button>
+                                <button class="inpaint-tool" id="eraseTool" title="Erase brush strokes only">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16l11-11 7 7-1 8z"/><path d="M6 11l7 7"/></svg>
+                                    Erase
+                                </button>
+                                <button class="inpaint-tool" id="rectTool" title="Rectangle fill">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
+                                    Rect
+                                </button>
+                                <button class="inpaint-tool" id="ellipseTool" title="Ellipse fill">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
+                                    Ellipse
+                                </button>
                             </div>
-                            <div id="maskPreviewContainer" class="image-preview-container" style="display: none;">
-                                <img id="maskPreview" class="image-preview" alt="Mask">
-                                <button id="removeMaskBtn" class="remove-image-btn">&times;</button>
+                            <div class="inpaint-tool-group">
+                                <label class="brush-size-label">Size</label>
+                                <input type="range" id="brushSize" min="5" max="80" value="25" class="brush-size-slider">
+                                <span id="brushSizeVal" class="brush-size-val">25</span>
+                            </div>
+                            <div class="inpaint-tool-group">
+                                <label class="brush-size-label">Hardness</label>
+                                <input type="range" id="brushHardness" min="0" max="100" value="80" class="brush-size-slider">
+                                <span id="brushHardnessVal" class="brush-size-val">80</span>
+                            </div>
+                            <div class="inpaint-tool-group">
+                                <button class="inpaint-action-btn" id="undoMaskBtn" title="Undo last stroke">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                                    Undo
+                                </button>
+                                <button class="inpaint-action-btn" id="clearMaskBtn" title="Clear all brush strokes">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                                    Clear
+                                </button>
+                                <button class="inpaint-action-btn" id="expandCanvasBtn" title="Expand canvas for outpainting">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
+                                    Expand
+                                </button>
+                                <button class="inpaint-action-btn" id="fullscreenMaskBtn" title="Edit fullscreen">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
+                                    Fullscreen
+                                </button>
+                            </div>
+                        </div>
+
+                        <!-- Canvas Expansion Panel -->
+                        <div id="expansionPanel" class="expansion-panel" style="display:none;">
+                            <div class="expansion-grid">
+                                <div class="expansion-field">
+                                    <label>Top (px)</label>
+                                    <input type="number" id="expTop" min="0" max="512" value="0" class="expansion-input">
+                                </div>
+                                <div class="expansion-field">
+                                    <label>Bottom (px)</label>
+                                    <input type="number" id="expBottom" min="0" max="512" value="0" class="expansion-input">
+                                </div>
+                                <div class="expansion-field">
+                                    <label>Left (px)</label>
+                                    <input type="number" id="expLeft" min="0" max="512" value="0" class="expansion-input">
+                                </div>
+                                <div class="expansion-field">
+                                    <label>Right (px)</label>
+                                    <input type="number" id="expRight" min="0" max="512" value="0" class="expansion-input">
+                                </div>
+                            </div>
+                            <div class="expansion-actions">
+                                <button class="inpaint-action-btn" id="applyExpansionBtn">Apply</button>
+                                <button class="inpaint-action-btn" id="resetExpansionBtn">Reset</button>
+                            </div>
+                        </div>
+
+                        <!-- Canvas container (image bg + mask layer stacked) -->
+                        <div id="inpaintCanvasWrap" class="inpaint-canvas-wrap">
+                            <div id="inpaintPrompt" class="inpaint-prompt">
+                                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+                                <p>Upload a source image above to start painting</p>
+                            </div>
+                            <!-- bg = image (never touched), mask = black strokes only -->
+                            <canvas id="inpaintBg" style="display:none;"></canvas>
+                            <canvas id="inpaintMask" style="display:none;"></canvas>
+                        </div>
+                        <p class="setting-hint" style="margin-top:0.5rem;">Black areas = region the AI will modify</p>
+                    </div>
+
+                    <!-- Fullscreen inpaint modal -->
+                    <div id="inpaintModal" class="inpaint-modal" style="display:none;">
+                        <div class="inpaint-modal-inner">
+                            <div class="inpaint-modal-toolbar">
+                                <div class="inpaint-tool-group">
+                                    <button class="inpaint-tool active" id="fsBrushTool">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
+                                        Brush
+                                    </button>
+                                    <button class="inpaint-tool" id="fsEraseTool">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16l11-11 7 7-1 8z"/><path d="M6 11l7 7"/></svg>
+                                        Erase
+                                    </button>
+                                    <button class="inpaint-tool" id="fsRectTool" title="Rectangle fill">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
+                                        Rect
+                                    </button>
+                                    <button class="inpaint-tool" id="fsEllipseTool" title="Ellipse fill">
+                                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
+                                        Ellipse
+                                    </button>
+                                </div>
+                                <div class="inpaint-tool-group">
+                                    <label class="brush-size-label">Size</label>
+                                    <input type="range" id="fsBrushSize" min="5" max="120" value="25" class="brush-size-slider">
+                                    <span id="fsBrushSizeVal" class="brush-size-val">25</span>
+                                </div>
+                                <div class="inpaint-tool-group">
+                                    <label class="brush-size-label">Hardness</label>
+                                    <input type="range" id="fsBrushHardness" min="0" max="100" value="80" class="brush-size-slider">
+                                    <span id="fsBrushHardnessVal" class="brush-size-val">80</span>
+                                </div>
+                                <div class="inpaint-tool-group">
+                                    <button class="inpaint-action-btn" id="fsUndoBtn">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
+                                        Undo
+                                    </button>
+                                    <button class="inpaint-action-btn" id="fsClearBtn">
+                                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
+                                        Clear
+                                    </button>
+                                </div>
+                                <button class="inpaint-action-btn inpaint-close-btn" id="closeInpaintModal">
+                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                                    Done
+                                </button>
+                            </div>
+                            <div class="inpaint-modal-canvas-wrap">
+                                <canvas id="inpaintFsBg"></canvas>
+                                <canvas id="inpaintFsMask"></canvas>
+                                <canvas id="inpaintFsPreview" style="position:absolute; pointer-events:none; user-select:none;"></canvas>
                             </div>
                         </div>
                     </div>

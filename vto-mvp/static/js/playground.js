@@ -1,11 +1,32 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let currentMode = 'text-to-image';
 let referenceImageBase64 = null;
-let maskImageBase64 = null;
+let maskImageBase64 = null;      // auto-generated from canvas
 let styleImageBase64 = null;
 let generatedImageBase64 = null;
 let progressInterval = null;
 let progressStart = null;
+
+// Inpaint canvas state
+const inpaint = {
+    canvas: null, overlay: null,
+    ctx: null, ovCtx: null,
+    painting: false,
+    tool: 'brush',        // 'brush' | 'erase' | 'rect' | 'ellipse'
+    size: 25,
+    hardness: 80,         // 0=fully soft, 100=fully hard (Feature 1)
+    lastPos: null,        // { x, y } for stroke interpolation (Feature 1)
+    history: [],          // undo stack (array of ImageData)
+    MAX_HISTORY: 20,
+    sourceImg: null,      // original image element (for fullscreen at native res)
+    previewCanvas: null,  // ephemeral canvas for shape preview (Feature 2)
+    previewCtx: null,
+    startPos: null,       // { x, y } drag start for shapes (Feature 2)
+    shapeMode: false,     // currently drawing a shape (Feature 2)
+    expanded: false,                              // (Feature 3)
+    expansion: { top: 0, bottom: 0, left: 0, right: 0 },
+    originalImg: null,    // image backup before first expansion (Feature 3)
+};
 
 // ── Mode Config ───────────────────────────────────────────────────────────────
 const modeConfig = {
@@ -131,12 +152,8 @@ const sourceImageSection   = document.getElementById('sourceImageSection');
 const sourceImageTitle     = document.getElementById('sourceImageTitle');
 const uploadPlaceholderHint= document.getElementById('uploadPlaceholderHint');
 const maskImageSection     = document.getElementById('maskImageSection');
-const maskUploadArea       = document.getElementById('maskUploadArea');
-const maskInput            = document.getElementById('maskInput');
-const maskPlaceholder      = document.getElementById('maskPlaceholder');
-const maskPreviewContainer = document.getElementById('maskPreviewContainer');
-const maskPreview          = document.getElementById('maskPreview');
-const removeMaskBtn        = document.getElementById('removeMaskBtn');
+// Inpaint canvas elements (resolved after DOMContentLoaded)
+let inpaintCanvasWrap, brushTool, eraseTool, brushSizeSlider, brushSizeVal, clearMaskBtn, undoMaskBtn;
 const styleImageSection    = document.getElementById('styleImageSection');
 const styleUploadArea      = document.getElementById('styleUploadArea');
 const styleInput           = document.getElementById('styleInput');
@@ -202,18 +219,18 @@ function setupEventListeners() {
     // Source image upload
     setupImageUpload(
         imageUploadArea, imageInput, imagePreviewContainer, imagePreview, uploadPlaceholder,
-        (b64) => { referenceImageBase64 = b64; },
+        (b64) => {
+            referenceImageBase64 = b64;
+            if (currentMode === 'inpainting' || currentMode === 'outpainting') {
+                loadImageIntoInpaintCanvas(b64);
+            }
+        },
         () => referenceImageBase64
     );
     removeImageBtn.onclick = (e) => { e.stopPropagation(); removeImage('source'); };
 
-    // Mask image upload
-    setupImageUpload(
-        maskUploadArea, maskInput, maskPreviewContainer, maskPreview, maskPlaceholder,
-        (b64) => { maskImageBase64 = b64; },
-        () => maskImageBase64
-    );
-    removeMaskBtn.onclick = (e) => { e.stopPropagation(); removeImage('mask'); };
+    // Inpaint canvas setup
+    initInpaintCanvas();
 
     // Style image upload
     setupImageUpload(
@@ -298,13 +315,25 @@ function removeImage(type) {
             imagePreview.src = '';
             imagePreviewContainer.style.display = 'none';
             uploadPlaceholder.style.display = 'flex';
+            // Reset inpaint canvases fully
+            if (inpaint.ctx)   { inpaint.ctx.clearRect(0, 0, inpaint.canvas.width, inpaint.canvas.height); inpaint.canvas.width = 0; }
+            if (inpaint.ovCtx) { inpaint.ovCtx.clearRect(0, 0, inpaint.overlay.width, inpaint.overlay.height); inpaint.overlay.width = 0; }
+            inpaint.history     = [];
+            inpaint.expanded    = false;
+            inpaint.expansion   = { top: 0, bottom: 0, left: 0, right: 0 };
+            inpaint.originalImg = null;
+            if (inpaint.canvas)  inpaint.canvas.style.display  = 'none';
+            if (inpaint.overlay) inpaint.overlay.style.display = 'none';
+            document.getElementById('inpaintPrompt').style.display = 'flex';
+            toggleExpansionPanel(false);
+            const applyBtn = document.getElementById('applyExpansionBtn');
+            if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = 'Apply'; }
             break;
         case 'mask':
+            // Only clear the stroke layer, not the image
             maskImageBase64 = null;
-            maskInput.value = '';
-            maskPreview.src = '';
-            maskPreviewContainer.style.display = 'none';
-            maskPlaceholder.style.display = 'flex';
+            if (inpaint.ovCtx) inpaint.ovCtx.clearRect(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+            inpaint.history = [];
             break;
         case 'style':
             styleImageBase64 = null;
@@ -336,6 +365,11 @@ function updateUIForMode() {
 
     maskImageSection.style.display  = config.showMask  ? 'block' : 'none';
     styleImageSection.style.display = config.showStyle ? 'block' : 'none';
+
+    // If switching to inpaint/outpaint with image already loaded, populate canvas
+    if (config.showMask && referenceImageBase64 && inpaint.canvas && inpaint.canvas.width === 0) {
+        loadImageIntoInpaintCanvas(referenceImageBase64);
+    }
 
     renderTemplates(config.templates);
 }
@@ -495,9 +529,12 @@ async function generate() {
         showToast('Please upload a source image for this mode', 'warning');
         return;
     }
-    if (config.showMask && !maskImageBase64) {
-        showToast('Please upload a mask image for this mode', 'warning');
-        return;
+    if (config.showMask) {
+        maskImageBase64 = exportMaskAsBase64();
+        if (!maskImageBase64) {
+            showToast('Please paint the area you want to modify', 'warning');
+            return;
+        }
     }
     if (config.showStyle && !styleImageBase64) {
         showToast('Please upload a style reference image for this mode', 'warning');
@@ -617,4 +654,720 @@ async function clearHistory() {
     } catch (e) {
         showToast('Failed to clear history', 'error');
     }
+}
+
+// ── Inpaint Canvas ─────────────────────────────────────────────────────────────
+// Architecture:
+//   inpaintBg   = image drawn once, never touched (pointer-events: none)
+//   inpaintMask = transparent canvas for black strokes only, sits on top
+//   Erase/clear only affect inpaintMask — image is always preserved
+//
+// Fullscreen modal mirrors the same mask data via inpaintFsMask.
+
+function initInpaintCanvas() {
+    inpaintCanvasWrap = document.getElementById('inpaintCanvasWrap');
+    brushTool        = document.getElementById('brushTool');
+    eraseTool        = document.getElementById('eraseTool');
+    brushSizeSlider  = document.getElementById('brushSize');
+    brushSizeVal     = document.getElementById('brushSizeVal');
+    clearMaskBtn     = document.getElementById('clearMaskBtn');
+    undoMaskBtn      = document.getElementById('undoMaskBtn');
+
+    inpaint.canvas  = document.getElementById('inpaintBg');
+    inpaint.overlay = document.getElementById('inpaintMask');
+    inpaint.ctx     = inpaint.canvas.getContext('2d');
+    inpaint.ovCtx   = inpaint.overlay.getContext('2d');
+
+    // Mini toolbar
+    brushTool.onclick = () => setInpaintTool('brush');
+    eraseTool.onclick = () => setInpaintTool('erase');
+    document.getElementById('rectTool').onclick    = () => setInpaintTool('rect');
+    document.getElementById('ellipseTool').onclick = () => setInpaintTool('ellipse');
+
+    brushSizeSlider.oninput = () => {
+        inpaint.size = parseInt(brushSizeSlider.value);
+        brushSizeVal.textContent = inpaint.size;
+        syncFsSize();
+    };
+
+    const brushHardnessSlider = document.getElementById('brushHardness');
+    const brushHardnessVal    = document.getElementById('brushHardnessVal');
+    brushHardnessSlider.oninput = () => {
+        inpaint.hardness = parseInt(brushHardnessSlider.value);
+        brushHardnessVal.textContent = inpaint.hardness;
+        syncFsHardness();
+    };
+
+    clearMaskBtn.onclick = () => {
+        saveInpaintHistory();
+        inpaint.ovCtx.clearRect(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+        syncFsMask();
+        showToast('Mask cleared', 'info', 1500);
+    };
+    undoMaskBtn.onclick = undoInpaint;
+
+    // Expand canvas button + panel
+    document.getElementById('expandCanvasBtn').onclick = () => toggleExpansionPanel();
+    document.getElementById('applyExpansionBtn').onclick = applyExpansion;
+    document.getElementById('resetExpansionBtn').onclick = resetExpansion;
+    ['expTop','expBottom','expLeft','expRight'].forEach(id => {
+        document.getElementById(id).oninput = (e) => {
+            const key = id.replace('exp', '').toLowerCase();
+            inpaint.expansion[key] = Math.max(0, Math.min(512, parseInt(e.target.value) || 0));
+        };
+    });
+
+    // Fullscreen button
+    document.getElementById('fullscreenMaskBtn').onclick = openInpaintModal;
+
+    // Create the mini preview canvas for shape preview (above mask layer)
+    inpaint.previewCanvas = createPreviewCanvas(inpaint.overlay);
+    inpaint.previewCtx    = inpaint.previewCanvas.getContext('2d');
+
+    // Attach drawing to mask canvas
+    attachDrawEvents(inpaint.overlay, getCanvasPos);
+
+    // ── Fullscreen modal ──
+    const modal       = document.getElementById('inpaintModal');
+    const fsBg        = document.getElementById('inpaintFsBg');
+    const fsMask      = document.getElementById('inpaintFsMask');
+    const fsBrushBtn  = document.getElementById('fsBrushTool');
+    const fsEraseBtn  = document.getElementById('fsEraseTool');
+    const fsSizeSlide = document.getElementById('fsBrushSize');
+    const fsSizeVal   = document.getElementById('fsBrushSizeVal');
+    const fsUndoBtn   = document.getElementById('fsUndoBtn');
+    const fsClearBtn  = document.getElementById('fsClearBtn');
+    const fsCloseBtn  = document.getElementById('closeInpaintModal');
+
+    fsBrushBtn.onclick = () => setInpaintTool('brush');
+    fsEraseBtn.onclick = () => setInpaintTool('erase');
+    document.getElementById('fsRectTool').onclick    = () => setInpaintTool('rect');
+    document.getElementById('fsEllipseTool').onclick = () => setInpaintTool('ellipse');
+
+    fsSizeSlide.oninput = () => {
+        inpaint.size = parseInt(fsSizeSlide.value);
+        brushSizeSlider.value = inpaint.size;
+        brushSizeVal.textContent = inpaint.size;
+        fsSizeVal.textContent = inpaint.size;
+    };
+
+    const fsHardnessSlide = document.getElementById('fsBrushHardness');
+    const fsHardnessVal   = document.getElementById('fsBrushHardnessVal');
+    fsHardnessSlide.oninput = () => {
+        inpaint.hardness = parseInt(fsHardnessSlide.value);
+        brushHardnessSlider.value = inpaint.hardness;
+        brushHardnessVal.textContent = inpaint.hardness;
+        fsHardnessVal.textContent = inpaint.hardness;
+    };
+    fsClearBtn.onclick = () => {
+        saveInpaintHistory();
+        inpaint.ovCtx.clearRect(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+        fsMask.getContext('2d').clearRect(0, 0, fsMask.width, fsMask.height);
+        showToast('Mask cleared', 'info', 1500);
+    };
+    fsUndoBtn.onclick = () => {
+        undoInpaint();
+        syncFsMask();
+    };
+    fsCloseBtn.onclick = () => {
+        // Copy fs mask back to mini mask
+        inpaint.ovCtx.clearRect(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+        inpaint.ovCtx.drawImage(fsMask, 0, 0, inpaint.overlay.width, inpaint.overlay.height);
+        modal.style.display = 'none';
+        document.body.style.overflow = '';
+    };
+
+    // Draw events on fullscreen mask
+    attachDrawEvents(fsMask, getFsCanvasPos);
+}
+
+function attachDrawEvents(canvas, getPosFunc) {
+    // Global mouseup to cancel shape if released outside canvas
+    if (!attachDrawEvents._windowBound) {
+        attachDrawEvents._windowBound = true;
+        window.addEventListener('mouseup', () => {
+            if (inpaint.shapeMode) {
+                clearShapePreview(inpaint.overlay);
+                clearShapePreview(document.getElementById('inpaintFsMask'));
+                inpaint.shapeMode = false;
+                inpaint.startPos  = null;
+            }
+            inpaint.painting = false;
+            inpaint.lastPos  = null;
+        });
+    }
+
+    canvas.addEventListener('mousedown', (e) => {
+        const pos = getPosFunc(e, canvas);
+        if (inpaint.tool === 'rect' || inpaint.tool === 'ellipse') {
+            saveInpaintHistory();
+            inpaint.startPos  = pos;
+            inpaint.shapeMode = true;
+        } else {
+            saveInpaintHistory();
+            inpaint.painting = true;
+            inpaint.lastPos  = null;
+            paintDot(canvas, pos);
+            inpaint.lastPos  = pos;
+        }
+    });
+
+    canvas.addEventListener('mousemove', (e) => {
+        const pos = getPosFunc(e, canvas);
+        if (inpaint.shapeMode && inpaint.startPos) {
+            drawShapePreview(canvas, inpaint.startPos, pos);
+        } else if (inpaint.painting) {
+            if (inpaint.lastPos) {
+                interpolateAndPaint(canvas, inpaint.lastPos, pos);
+            } else {
+                paintDot(canvas, pos);
+            }
+            inpaint.lastPos = pos;
+        }
+    });
+
+    canvas.addEventListener('mouseup', (e) => {
+        if (inpaint.shapeMode && inpaint.startPos) {
+            const pos = getPosFunc(e, canvas);
+            clearShapePreview(canvas);
+            commitShape(canvas, inpaint.startPos, pos);
+            inpaint.startPos  = null;
+            inpaint.shapeMode = false;
+            if (canvas === inpaint.overlay) syncFsMask();
+        } else {
+            inpaint.painting = false;
+            inpaint.lastPos  = null;
+        }
+    });
+
+    canvas.addEventListener('mouseleave', () => {
+        clearShapePreview(canvas);
+        inpaint.painting = false;
+        inpaint.lastPos  = null;
+    });
+
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const pos = getPosFunc(e.touches[0], canvas);
+        if (inpaint.tool === 'rect' || inpaint.tool === 'ellipse') {
+            saveInpaintHistory();
+            inpaint.startPos  = pos;
+            inpaint.shapeMode = true;
+        } else {
+            saveInpaintHistory();
+            inpaint.painting = true;
+            inpaint.lastPos  = null;
+            paintDot(canvas, pos);
+            inpaint.lastPos  = pos;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const pos = getPosFunc(e.touches[0], canvas);
+        if (inpaint.shapeMode && inpaint.startPos) {
+            drawShapePreview(canvas, inpaint.startPos, pos);
+        } else if (inpaint.painting) {
+            if (inpaint.lastPos) interpolateAndPaint(canvas, inpaint.lastPos, pos);
+            else paintDot(canvas, pos);
+            inpaint.lastPos = pos;
+        }
+    }, { passive: false });
+
+    canvas.addEventListener('touchend', (e) => {
+        if (inpaint.shapeMode && inpaint.startPos) {
+            const pos = getPosFunc(e.changedTouches[0], canvas);
+            clearShapePreview(canvas);
+            commitShape(canvas, inpaint.startPos, pos);
+            inpaint.startPos  = null;
+            inpaint.shapeMode = false;
+            if (canvas === inpaint.overlay) syncFsMask();
+        } else {
+            inpaint.painting = false;
+            inpaint.lastPos  = null;
+        }
+    });
+}
+
+function paintDot(canvas, pos) {
+    const ctx = canvas.getContext('2d');
+    const radius = inpaint.size / 2;
+    if (radius < 1) return;
+    const hardness = inpaint.hardness / 100;
+    const isErase  = inpaint.tool === 'erase';
+
+    ctx.save();
+    ctx.globalCompositeOperation = isErase ? 'destination-out' : 'source-over';
+
+    if (hardness >= 0.99) {
+        // Hard brush
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    } else {
+        // Soft brush: radial gradient falloff
+        const innerR = radius * hardness;
+        const grad = ctx.createRadialGradient(pos.x, pos.y, innerR, pos.x, pos.y, radius);
+        grad.addColorStop(0, 'rgba(0,0,0,1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(pos.x, pos.y, radius, 0, Math.PI * 2);
+        ctx.fill();
+    }
+
+    ctx.restore();
+    if (canvas === inpaint.overlay) syncFsMask();
+}
+
+function interpolateAndPaint(canvas, from, to) {
+    const dx = to.x - from.x, dy = to.y - from.y;
+    const dist = Math.sqrt(dx * dx + dy * dy);
+    const step  = Math.max(1, inpaint.size / 4);
+    const steps = Math.ceil(dist / step);
+    for (let i = 1; i <= steps; i++) {
+        const t = i / steps;
+        paintDot(canvas, { x: from.x + dx * t, y: from.y + dy * t });
+    }
+}
+
+function getCanvasPos(e, canvas) {
+    canvas = canvas || inpaint.overlay;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width  / rect.width;
+    const scaleY = canvas.height / rect.height;
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+}
+
+function getFsCanvasPos(e, canvas) {
+    return getCanvasPos(e, canvas);
+}
+
+// Sync mini mask → fullscreen mask
+function syncFsMask() {
+    const fsMask = document.getElementById('inpaintFsMask');
+    if (!fsMask || fsMask.width === 0) return;
+    const ctx = fsMask.getContext('2d');
+    ctx.clearRect(0, 0, fsMask.width, fsMask.height);
+    ctx.drawImage(inpaint.overlay, 0, 0, fsMask.width, fsMask.height);
+}
+
+// Sync fullscreen mask → mini mask
+function syncMiniMask(fsMask) {
+    if (!inpaint.overlay || inpaint.overlay.width === 0) return;
+    inpaint.ovCtx.clearRect(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+    inpaint.ovCtx.drawImage(fsMask, 0, 0, inpaint.overlay.width, inpaint.overlay.height);
+}
+
+function syncFsTool() {
+    const fsMask = document.getElementById('inpaintFsMask');
+    ['fsBrushTool','fsEraseTool','fsRectTool','fsEllipseTool'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.classList.toggle('active', el.id === `fs${inpaint.tool.charAt(0).toUpperCase() + inpaint.tool.slice(1)}Tool`);
+    });
+    if (fsMask) fsMask.style.cursor = inpaint.tool === 'erase' ? 'cell' : 'crosshair';
+}
+
+function syncFsSize() {
+    const s = document.getElementById('fsBrushSize');
+    const v = document.getElementById('fsBrushSizeVal');
+    if (s) s.value = inpaint.size;
+    if (v) v.textContent = inpaint.size;
+}
+
+function syncFsHardness() {
+    const s = document.getElementById('fsBrushHardness');
+    const v = document.getElementById('fsBrushHardnessVal');
+    if (s) s.value = inpaint.hardness;
+    if (v) v.textContent = inpaint.hardness;
+}
+
+function setInpaintTool(tool) {
+    inpaint.tool = tool;
+    // Reset shape state on tool switch
+    inpaint.shapeMode = false;
+    inpaint.startPos  = null;
+    clearShapePreview(inpaint.overlay);
+
+    const toolMap = { brush: brushTool, erase: eraseTool,
+                      rect:  document.getElementById('rectTool'),
+                      ellipse: document.getElementById('ellipseTool') };
+    Object.entries(toolMap).forEach(([t, el]) => el && el.classList.toggle('active', t === tool));
+    inpaint.overlay.style.cursor = tool === 'erase' ? 'cell' : 'crosshair';
+    syncFsTool();
+}
+
+// ── Shape fill helpers (Feature 2) ────────────────────────────────────────
+
+function createPreviewCanvas(referenceCanvas) {
+    const pv = document.createElement('canvas');
+    pv.style.position      = 'absolute';
+    pv.style.top           = '0';
+    pv.style.left          = '0';
+    pv.style.pointerEvents = 'none';
+    pv.style.zIndex        = '10';
+    pv.width  = referenceCanvas.width;
+    pv.height = referenceCanvas.height;
+    pv.style.width  = referenceCanvas.style.width  || referenceCanvas.width  + 'px';
+    pv.style.height = referenceCanvas.style.height || referenceCanvas.height + 'px';
+    referenceCanvas.parentElement.appendChild(pv);
+    return pv;
+}
+
+function getPreviewCtx(maskCanvas) {
+    const fsMask = document.getElementById('inpaintFsMask');
+    if (maskCanvas === fsMask) {
+        const fsPv = document.getElementById('inpaintFsPreview');
+        return fsPv ? fsPv.getContext('2d') : null;
+    }
+    return inpaint.previewCtx;
+}
+
+function drawShapePreview(maskCanvas, start, end) {
+    const pvCtx = getPreviewCtx(maskCanvas);
+    if (!pvCtx) return;
+    const pv = pvCtx.canvas;
+    pvCtx.clearRect(0, 0, pv.width, pv.height);
+
+    // Scale start/end from CSS display coords → canvas pixel coords
+    const rect = maskCanvas.getBoundingClientRect();
+    const scaleX = maskCanvas.width / rect.width;
+    const scaleY = maskCanvas.height / rect.height;
+
+    // start and end are already in canvas pixel space (from getCanvasPos)
+    const x  = Math.min(start.x, end.x);
+    const y  = Math.min(start.y, end.y);
+    const w  = Math.abs(end.x - start.x);
+    const h  = Math.abs(end.y - start.y);
+    const cx = x + w / 2, cy = y + h / 2;
+
+    // Sync preview canvas CSS size to mask canvas CSS size (for fullscreen)
+    pv.style.width  = maskCanvas.style.width  || maskCanvas.width  + 'px';
+    pv.style.height = maskCanvas.style.height || maskCanvas.height + 'px';
+    pv.style.left   = maskCanvas.style.left   || '0px';
+    pv.style.top    = maskCanvas.style.top    || '0px';
+
+    pvCtx.save();
+    pvCtx.globalAlpha = 0.5;
+    pvCtx.fillStyle   = 'rgba(0,0,0,0.6)';
+    if (inpaint.tool === 'rect') {
+        pvCtx.fillRect(x, y, w, h);
+    } else {
+        pvCtx.beginPath();
+        pvCtx.ellipse(cx, cy, Math.max(1, w / 2), Math.max(1, h / 2), 0, 0, Math.PI * 2);
+        pvCtx.fill();
+    }
+    pvCtx.globalAlpha = 1.0;
+    pvCtx.strokeStyle = 'rgba(255,255,255,0.9)';
+    pvCtx.lineWidth   = Math.max(1, 1 / scaleX);
+    pvCtx.setLineDash([4 / scaleX, 4 / scaleX]);
+    pvCtx.strokeRect(x, y, w, h);
+    pvCtx.restore();
+}
+
+function clearShapePreview(maskCanvas) {
+    if (!maskCanvas) return;
+    const pvCtx = getPreviewCtx(maskCanvas);
+    if (!pvCtx) return;
+    const pv = pvCtx.canvas;
+    pvCtx.clearRect(0, 0, pv.width, pv.height);
+}
+
+function commitShape(maskCanvas, start, end) {
+    const ctx = maskCanvas.getContext('2d');
+    const x   = Math.min(start.x, end.x);
+    const y   = Math.min(start.y, end.y);
+    const w   = Math.abs(end.x - start.x);
+    const h   = Math.abs(end.y - start.y);
+    const cx  = x + w / 2, cy = y + h / 2;
+    if (w < 2 || h < 2) return;
+
+    const hardness = inpaint.hardness / 100;
+
+    ctx.save();
+    ctx.globalCompositeOperation = 'source-over';
+
+    if (hardness >= 0.99) {
+        ctx.fillStyle = 'rgba(0,0,0,1)';
+        if (inpaint.tool === 'rect') {
+            ctx.fillRect(x, y, w, h);
+        } else {
+            ctx.beginPath();
+            ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+            ctx.fill();
+        }
+    } else {
+        // Clip to shape, fill with radial gradient
+        ctx.beginPath();
+        if (inpaint.tool === 'rect') {
+            ctx.rect(x, y, w, h);
+        } else {
+            ctx.ellipse(cx, cy, w / 2, h / 2, 0, 0, Math.PI * 2);
+        }
+        ctx.clip();
+        const outerR  = Math.max(w, h) / 2;
+        const innerR  = outerR * hardness;
+        const grad    = ctx.createRadialGradient(cx, cy, innerR, cx, cy, outerR);
+        grad.addColorStop(0, 'rgba(0,0,0,1)');
+        grad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.fillStyle = grad;
+        ctx.fillRect(x, y, w, h);
+    }
+
+    ctx.restore();
+}
+
+// ── Canvas Expansion (Feature 3) ──────────────────────────────────────────
+
+function toggleExpansionPanel(forceState) {
+    const panel = document.getElementById('expansionPanel');
+    if (!panel) return;
+    const show = forceState !== undefined ? forceState : panel.style.display === 'none';
+    panel.style.display = show ? 'block' : 'none';
+}
+
+function applyExpansion() {
+    const exp  = inpaint.expansion;
+    const addW = exp.left + exp.right;
+    const addH = exp.top  + exp.bottom;
+    if (addW === 0 && addH === 0) {
+        showToast('Set at least one expansion value', 'warning');
+        return;
+    }
+    if (!inpaint.canvas.width) {
+        showToast('Upload a source image first', 'warning');
+        return;
+    }
+
+    // Backup original before first expansion
+    if (!inpaint.originalImg) inpaint.originalImg = inpaint.sourceImg;
+
+    const origW = inpaint.canvas.width;
+    const origH = inpaint.canvas.height;
+    const newW  = origW + addW;
+    const newH  = origH + addH;
+
+    // Snapshot both canvases
+    const bgSnap   = document.createElement('canvas');
+    bgSnap.width   = origW; bgSnap.height = origH;
+    bgSnap.getContext('2d').drawImage(inpaint.canvas, 0, 0);
+
+    const maskSnap  = document.createElement('canvas');
+    maskSnap.width  = origW; maskSnap.height = origH;
+    maskSnap.getContext('2d').drawImage(inpaint.overlay, 0, 0);
+
+    // Resize BG canvas
+    inpaint.canvas.width  = newW;
+    inpaint.canvas.height = newH;
+    inpaint.ctx.fillStyle = '#000';
+    inpaint.ctx.fillRect(0, 0, newW, newH);
+    inpaint.ctx.drawImage(bgSnap, exp.left, exp.top);
+
+    // Resize mask canvas
+    inpaint.overlay.width  = newW;
+    inpaint.overlay.height = newH;
+    inpaint.ovCtx.clearRect(0, 0, newW, newH);
+    // Expansion zones = opaque black on mask → white in export → AI fills them
+    inpaint.ovCtx.fillStyle = 'rgba(0,0,0,1)';
+    if (exp.top    > 0) inpaint.ovCtx.fillRect(0,               0,               newW,      exp.top);
+    if (exp.bottom > 0) inpaint.ovCtx.fillRect(0,               exp.top + origH, newW,      exp.bottom);
+    if (exp.left   > 0) inpaint.ovCtx.fillRect(0,               exp.top,         exp.left,  origH);
+    if (exp.right  > 0) inpaint.ovCtx.fillRect(exp.left + origW, exp.top,        exp.right, origH);
+    // Restore existing user strokes at offset position
+    inpaint.ovCtx.drawImage(maskSnap, exp.left, exp.top);
+
+    // Update the image sent to the API to the expanded canvas
+    referenceImageBase64 = inpaint.canvas.toDataURL('image/png');
+
+    inpaint.expanded = true;
+    inpaint.history  = [];
+
+    // Resize preview canvas if it exists
+    if (inpaint.previewCanvas) {
+        inpaint.previewCanvas.width  = newW;
+        inpaint.previewCanvas.height = newH;
+    }
+
+    // Update CSS display sizes after layout
+    requestAnimationFrame(() => {
+        const maxW  = inpaintCanvasWrap.clientWidth || 600;
+        const scale = Math.min(1, maxW / newW);
+        const dispW = Math.round(newW * scale);
+        const dispH = Math.round(newH * scale);
+
+        inpaint.canvas.style.width   = dispW + 'px';
+        inpaint.canvas.style.height  = dispH + 'px';
+        inpaint.overlay.style.width  = dispW + 'px';
+        inpaint.overlay.style.height = dispH + 'px';
+        inpaint.overlay.style.left   = '0px';
+        inpaint.overlay.style.top    = '0px';
+        if (inpaint.previewCanvas) {
+            inpaint.previewCanvas.style.width  = dispW + 'px';
+            inpaint.previewCanvas.style.height = dispH + 'px';
+        }
+    });
+
+    // Disable Apply to prevent double-expansion
+    const applyBtn = document.getElementById('applyExpansionBtn');
+    if (applyBtn) { applyBtn.disabled = true; applyBtn.textContent = 'Applied'; }
+
+    showToast(`Canvas expanded by ${addW > 0 ? addW + 'px wide' : ''}${addW > 0 && addH > 0 ? ' + ' : ''}${addH > 0 ? addH + 'px tall' : ''}`, 'success');
+    toggleExpansionPanel(false);
+}
+
+function resetExpansion() {
+    if (!inpaint.originalImg) {
+        showToast('No expansion to reset', 'info', 1500);
+        return;
+    }
+    inpaint.expansion   = { top: 0, bottom: 0, left: 0, right: 0 };
+    inpaint.expanded    = false;
+    const origSrc       = inpaint.originalImg.src;
+    inpaint.originalImg = null;
+
+    ['expTop','expBottom','expLeft','expRight'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = 0;
+    });
+
+    const applyBtn = document.getElementById('applyExpansionBtn');
+    if (applyBtn) { applyBtn.disabled = false; applyBtn.textContent = 'Apply'; }
+
+    loadImageIntoInpaintCanvas(origSrc);
+    showToast('Canvas reset to original', 'info');
+}
+
+function openInpaintModal() {
+    if (!inpaint.canvas.width || !inpaint.sourceImg) {
+        showToast('Upload a source image first', 'warning');
+        return;
+    }
+    const modal  = document.getElementById('inpaintModal');
+    const fsBg   = document.getElementById('inpaintFsBg');
+    const fsMask = document.getElementById('inpaintFsMask');
+
+    // Use native image resolution so CSS max-width/max-height can scale it up
+    const nW = inpaint.sourceImg.naturalWidth;
+    const nH = inpaint.sourceImg.naturalHeight;
+
+    fsBg.width   = nW;
+    fsBg.height  = nH;
+    fsMask.width  = nW;
+    fsMask.height = nH;
+
+    // Draw image at native res; scale up existing mini mask strokes
+    fsBg.getContext('2d').drawImage(inpaint.sourceImg, 0, 0);
+    fsMask.getContext('2d').drawImage(inpaint.overlay, 0, 0, nW, nH);
+
+    syncFsTool();
+    syncFsSize();
+    syncFsHardness();
+
+    // Resize fullscreen preview canvas to native res
+    const fsPv = document.getElementById('inpaintFsPreview');
+    if (fsPv) { fsPv.width = nW; fsPv.height = nH; }
+
+    modal.style.display = 'flex';
+    document.body.style.overflow = 'hidden';
+
+    // After modal is visible, position fsMask (and fsPreview) to exactly cover fsBg
+    requestAnimationFrame(() => {
+        const wrap   = fsBg.parentElement.getBoundingClientRect();
+        const bgRect = fsBg.getBoundingClientRect();
+        const w = bgRect.width + 'px', h = bgRect.height + 'px';
+        const l = (bgRect.left - wrap.left) + 'px', t = (bgRect.top - wrap.top) + 'px';
+        fsMask.style.width  = w; fsMask.style.height = h;
+        fsMask.style.left   = l; fsMask.style.top    = t;
+        if (fsPv) {
+            fsPv.style.width  = w; fsPv.style.height = h;
+            fsPv.style.left   = l; fsPv.style.top    = t;
+        }
+    });
+}
+
+function loadImageIntoInpaintCanvas(base64) {
+    const img = new Image();
+    img.onload = () => {
+        inpaint.sourceImg = img;  // store for fullscreen native-res drawing
+
+        const maxW = inpaintCanvasWrap.clientWidth || 600;
+        const scale = Math.min(1, maxW / img.width);
+        const w = Math.round(img.width * scale);
+        const h = Math.round(img.height * scale);
+
+        // BG canvas = image (pixel buffer matches scaled display size)
+        inpaint.canvas.width  = w;
+        inpaint.canvas.height = h;
+        inpaint.ctx.drawImage(img, 0, 0, w, h);
+
+        // Mask canvas = same pixel buffer, transparent (strokes only)
+        inpaint.overlay.width  = w;
+        inpaint.overlay.height = h;
+        inpaint.ovCtx.clearRect(0, 0, w, h);
+
+        inpaint.history  = [];
+        inpaint.expanded = false;
+        inpaint.expansion = { top: 0, bottom: 0, left: 0, right: 0 };
+
+        document.getElementById('inpaintPrompt').style.display = 'none';
+        inpaint.canvas.style.display  = 'block';
+        inpaint.overlay.style.display = 'block';
+
+        // Wait for layout to settle so getBoundingClientRect is accurate
+        requestAnimationFrame(() => {
+            const bgRect = inpaint.canvas.getBoundingClientRect();
+            inpaint.overlay.style.width  = bgRect.width  + 'px';
+            inpaint.overlay.style.height = bgRect.height + 'px';
+            inpaint.overlay.style.left   = '0px';
+            inpaint.overlay.style.top    = '0px';
+
+            // Resize and reposition the preview canvas to match
+            if (inpaint.previewCanvas) {
+                inpaint.previewCanvas.width  = w;
+                inpaint.previewCanvas.height = h;
+                inpaint.previewCanvas.style.width  = bgRect.width  + 'px';
+                inpaint.previewCanvas.style.height = bgRect.height + 'px';
+                inpaint.previewCanvas.style.left   = '0px';
+                inpaint.previewCanvas.style.top    = '0px';
+            }
+        });
+    };
+    img.src = base64;
+}
+
+function saveInpaintHistory() {
+    if (!inpaint.overlay.width) return;
+    const snap = inpaint.ovCtx.getImageData(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+    inpaint.history.push(snap);
+    if (inpaint.history.length > inpaint.MAX_HISTORY) inpaint.history.shift();
+}
+
+function undoInpaint() {
+    if (inpaint.history.length === 0) { showToast('Nothing to undo', 'info', 1500); return; }
+    const prev = inpaint.history.pop();
+    inpaint.ovCtx.putImageData(prev, 0, 0);
+}
+
+// Export: white image with black where user painted
+function exportMaskAsBase64() {
+    if (!inpaint.overlay.width) return null;
+
+    // Check something was painted
+    const data = inpaint.ovCtx.getImageData(0, 0, inpaint.overlay.width, inpaint.overlay.height);
+    const hasPaint = data.data.some((v, i) => i % 4 === 3 && v > 10);
+    if (!hasPaint) return null;
+
+    const out = document.createElement('canvas');
+    out.width  = inpaint.overlay.width;
+    out.height = inpaint.overlay.height;
+    const ctx = out.getContext('2d');
+
+    // White background
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, out.width, out.height);
+    // Paint black strokes on top
+    ctx.drawImage(inpaint.overlay, 0, 0);
+
+    return out.toDataURL('image/png');
 }

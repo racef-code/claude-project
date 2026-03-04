@@ -509,6 +509,239 @@ header { margin-bottom: 1.5rem; }
     100% { background-position: -200% 0; }
 }
 
+/* ── Inpaint Canvas ───────────────────────────────────────────────────────── */
+.inpaint-header { margin-bottom: 0.6rem; }
+.inpaint-header h3 { margin-bottom: 0.2rem; }
+
+.inpaint-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 0.75rem;
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    margin-bottom: 0.6rem;
+}
+
+.inpaint-tool-group {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+.inpaint-tool-group + .inpaint-tool-group {
+    padding-left: 0.75rem;
+    border-left: 1px solid var(--border-color);
+}
+
+.inpaint-tool {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+.inpaint-tool:hover  { border-color: var(--accent); color: var(--accent); }
+.inpaint-tool.active { background: var(--accent); border-color: var(--accent); color: white; }
+
+.inpaint-action-btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.35rem 0.65rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    background: var(--bg-secondary);
+    color: var(--text-muted);
+    font-size: 0.78rem;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+}
+.inpaint-action-btn:hover { border-color: var(--border-hover); color: var(--text-primary); }
+
+.brush-size-label { font-size: 0.78rem; color: var(--text-muted); }
+.brush-size-slider {
+    width: 80px;
+    accent-color: var(--accent);
+    cursor: pointer;
+    height: 4px;
+}
+.brush-size-val {
+    min-width: 1.8rem;
+    text-align: right;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--accent);
+}
+
+/* Canvas stack: bg image + mask layer on top */
+.inpaint-canvas-wrap {
+    position: relative;
+    border: 2px solid var(--border-color);
+    border-radius: var(--radius-md);
+    overflow: hidden;
+    background: #111;
+    min-height: 120px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color var(--transition);
+}
+.inpaint-canvas-wrap:hover { border-color: var(--accent); }
+
+.inpaint-prompt {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.6rem;
+    color: #666;
+    padding: 2rem;
+    text-align: center;
+}
+.inpaint-prompt svg { stroke: #555; }
+.inpaint-prompt p   { margin: 0; font-size: 0.875rem; }
+
+/* bg canvas = image, never interactive */
+#inpaintBg {
+    display: block;
+    max-width: 100%;
+    user-select: none;
+    pointer-events: none;
+}
+/* mask canvas = black strokes, sits on top, receives all events */
+#inpaintMask {
+    position: absolute;
+    top: 0; left: 0;
+    cursor: crosshair;
+    user-select: none;
+}
+
+/* ── Inpaint Fullscreen Modal ─────────────────────────────────────────────── */
+.inpaint-modal {
+    position: fixed;
+    inset: 0;
+    z-index: 1000;
+    background: rgba(0,0,0,0.92);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.inpaint-modal-inner {
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+    height: 100%;
+    max-width: 100vw;
+    max-height: 100vh;
+}
+
+.inpaint-modal-toolbar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    background: #1a1a1a;
+    border-bottom: 1px solid #333;
+    flex-shrink: 0;
+}
+
+.inpaint-close-btn {
+    margin-left: auto;
+    background: var(--accent) !important;
+    color: white !important;
+    border-color: var(--accent) !important;
+}
+.inpaint-close-btn:hover { background: var(--accent-hover) !important; }
+
+.inpaint-modal-canvas-wrap {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 1rem;
+    box-sizing: border-box;
+}
+
+#inpaintFsBg {
+    display: block;
+    max-width: 100%;
+    max-height: 100%;
+    pointer-events: none;
+    user-select: none;
+}
+#inpaintFsMask {
+    position: absolute;
+    cursor: crosshair;
+    user-select: none;
+}
+
+/* ── Canvas Expansion Panel ─────────────────────────────────────────────── */
+.expansion-panel {
+    background: var(--bg-tertiary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    padding: 0.75rem;
+    margin-bottom: 0.6rem;
+}
+
+.expansion-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.5rem;
+    margin-bottom: 0.6rem;
+}
+
+.expansion-field {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+}
+
+.expansion-field label {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-weight: 500;
+}
+
+.expansion-input {
+    width: 100%;
+    padding: 0.3rem 0.5rem;
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-sm);
+    font-size: 0.8rem;
+    background: var(--bg-secondary);
+    color: var(--text-primary);
+    text-align: center;
+    box-sizing: border-box;
+}
+.expansion-input:focus { outline: none; border-color: var(--accent); }
+
+.expansion-actions {
+    display: flex;
+    gap: 0.5rem;
+    justify-content: flex-end;
+}
+
+/* ── Shape preview canvas ────────────────────────────────────────────────── */
+#inpaintPreview, #inpaintFsPreview {
+    pointer-events: none;
+    user-select: none;
+}
+
 /* ── Responsive ───────────────────────────────────────────────────────────── */
 @media (max-width: 900px) {
     .playground-layout { grid-template-columns: 1fr; }
