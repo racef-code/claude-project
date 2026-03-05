@@ -172,11 +172,20 @@ const presetBtn            = document.getElementById('presetBtn');
 const presetLabel          = document.getElementById('presetLabel');
 const presetDropdown       = document.getElementById('presetDropdown');
 
+// ── Mobile elements ────────────────────────────────────────────────────────────
+const mobilePromptInput    = document.getElementById('mobilePromptInput');
+const mobileGenerateBtn    = document.getElementById('mobileGenerateBtn');
+const mobileDrawerBtn      = document.getElementById('mobileDrawerBtn');
+const mobileDrawer         = document.getElementById('mobileDrawer');
+const mobileDrawerBackdrop = document.getElementById('mobileDrawerBackdrop');
+const mobileModeLabel      = document.getElementById('mobileModeLabel');
+
 let activePreset = '';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
     setupEventListeners();
+    setupMobileUI();
     loadSettingsFromStorage();
     updateUIForMode();
     loadHistory();
@@ -385,8 +394,144 @@ function removeImage(type) {
 function setMode(mode) {
     currentMode = mode;
     modeTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.mode === mode));
+    // Sync mobile drawer chips
+    document.querySelectorAll('.drawer-mode-tab').forEach(t =>
+        t.classList.toggle('active', t.dataset.mode === mode));
+    // Update mobile mode label
+    const modeLabels = {
+        'text-to-image': 'Text to Image',
+        'image-editing': 'Edit Image',
+        'style-transfer': 'Style Transfer',
+        'inpainting': 'Inpainting',
+        'outpainting': 'Outpainting'
+    };
+    if (mobileModeLabel) mobileModeLabel.textContent = modeLabels[mode] || mode;
     updateUIForMode();
     saveSettingsToStorage();
+}
+
+// ── Mobile UI setup ───────────────────────────────────────────────────────────
+function setupMobileUI() {
+    if (!mobilePromptInput) return; // not on playground page
+
+    // Two-way sync between mobile and desktop prompt inputs
+    mobilePromptInput.addEventListener('input', () => {
+        promptInput.value = mobilePromptInput.value;
+    });
+    promptInput.addEventListener('input', () => {
+        if (document.activeElement !== mobilePromptInput) {
+            mobilePromptInput.value = promptInput.value;
+        }
+    });
+
+    // Mobile generate button
+    mobileGenerateBtn.addEventListener('click', generate);
+
+    // Drawer open/close
+    mobileDrawerBtn.addEventListener('click', () => {
+        mobileDrawer.classList.add('open');
+        mobileDrawerBackdrop.classList.add('open');
+    });
+    mobileDrawerBackdrop.addEventListener('click', closeMobileDrawer);
+
+    // Drawer mode chips
+    document.querySelectorAll('.drawer-mode-tab').forEach(tab => {
+        tab.addEventListener('click', () => {
+            setMode(tab.dataset.mode);
+            closeMobileDrawer();
+        });
+    });
+
+    // Drawer model buttons
+    document.querySelectorAll('.drawer-model-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const model = btn.dataset.model;
+            document.querySelectorAll('.drawer-model-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            // Sync desktop model buttons
+            document.querySelectorAll('.model-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.model === model));
+            saveSettingsToStorage();
+        });
+    });
+
+    // Drawer aspect ratio syncs to desktop select
+    const drawerAspect = document.getElementById('drawerAspectRatio');
+    if (drawerAspect) {
+        const aspectSelect = document.getElementById('aspectRatioSelect');
+        if (aspectSelect) {
+            drawerAspect.value = aspectSelect.value;
+            drawerAspect.addEventListener('change', () => {
+                aspectSelect.value = drawerAspect.value;
+                saveSettingsToStorage();
+            });
+        }
+    }
+
+    // Drawer negative prompt syncs to desktop
+    const drawerNeg = document.getElementById('mobileNegPrompt');
+    if (drawerNeg) {
+        const desktopNeg = document.getElementById('negativePromptInput');
+        if (desktopNeg) {
+            drawerNeg.value = desktopNeg.value;
+            drawerNeg.addEventListener('input', () => { desktopNeg.value = drawerNeg.value; });
+            desktopNeg.addEventListener('input', () => {
+                if (document.activeElement !== drawerNeg) drawerNeg.value = desktopNeg.value;
+            });
+        }
+    }
+
+    // Image attach button
+    const mobileImgBtn   = document.getElementById('mobileImgBtn');
+    const mobileImgInput = document.getElementById('mobileImgInput');
+    const mobileImgThumb = document.getElementById('mobileImgThumb');
+
+    if (mobileImgBtn && mobileImgInput) {
+        mobileImgBtn.addEventListener('click', () => {
+            if (mobileImgBtn.classList.contains('has-image')) {
+                // Tap filled button = clear the image
+                referenceImageBase64 = null;
+                mobileImgThumb.src = '';
+                mobileImgThumb.style.display = 'none';
+                mobileImgBtn.classList.remove('has-image');
+                mobileImgInput.value = '';
+                const imgPreviewContainer = document.getElementById('imagePreviewContainer');
+                const uploadPlaceholderEl = document.getElementById('uploadPlaceholder');
+                const imgPreview = document.getElementById('imagePreview');
+                if (imgPreview) imgPreview.src = '';
+                if (imgPreviewContainer) imgPreviewContainer.style.display = 'none';
+                if (uploadPlaceholderEl) uploadPlaceholderEl.style.display = 'flex';
+            } else {
+                mobileImgInput.click();
+            }
+        });
+
+        mobileImgInput.addEventListener('change', () => {
+            const file = mobileImgInput.files[0];
+            if (!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const dataUrl = e.target.result;
+                referenceImageBase64 = dataUrl;
+                mobileImgThumb.src = dataUrl;
+                mobileImgThumb.style.display = 'block';
+                mobileImgBtn.classList.add('has-image');
+                // Sync to desktop preview
+                const imgPreview = document.getElementById('imagePreview');
+                const imgPreviewContainer = document.getElementById('imagePreviewContainer');
+                const uploadPlaceholderEl = document.getElementById('uploadPlaceholder');
+                if (imgPreview) imgPreview.src = dataUrl;
+                if (imgPreviewContainer) imgPreviewContainer.style.display = 'block';
+                if (uploadPlaceholderEl) uploadPlaceholderEl.style.display = 'none';
+            };
+            reader.readAsDataURL(file);
+        });
+    }
+}
+
+function closeMobileDrawer() {
+    if (mobileDrawer) mobileDrawer.classList.remove('open');
+    if (mobileDrawerBackdrop) mobileDrawerBackdrop.classList.remove('open');
 }
 
 function updateUIForMode() {
@@ -466,7 +611,11 @@ function loadSettingsFromStorage() {
                 b.classList.toggle('active', b.dataset.model === s.model);
             });
         }
-        if (s.aspect_ratio) aspectRatioSelect.value  = s.aspect_ratio;
+        if (s.aspect_ratio) {
+            aspectRatioSelect.value = s.aspect_ratio;
+            const drawerAspect = document.getElementById('drawerAspectRatio');
+            if (drawerAspect) drawerAspect.value = s.aspect_ratio;
+        }
         if (s.image_size)   imageSizeSelect.value    = s.image_size;
         if (s.temperature != null) {
             temperatureSlider.value  = s.temperature;
@@ -476,6 +625,20 @@ function loadSettingsFromStorage() {
         if (s.mode && modeConfig[s.mode]) {
             currentMode = s.mode;
             modeTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.mode === currentMode));
+            // Sync drawer mode chips
+            document.querySelectorAll('.drawer-mode-tab').forEach(t =>
+                t.classList.toggle('active', t.dataset.mode === currentMode));
+            // Sync mobile mode label
+            const modeLabels = {
+                'text-to-image': 'Text to Image', 'image-editing': 'Edit Image',
+                'style-transfer': 'Style Transfer', 'inpainting': 'Inpainting', 'outpainting': 'Outpainting'
+            };
+            if (mobileModeLabel) mobileModeLabel.textContent = modeLabels[currentMode] || currentMode;
+        }
+        // Sync drawer model buttons
+        if (s.model) {
+            document.querySelectorAll('.drawer-model-btn').forEach(b =>
+                b.classList.toggle('active', b.dataset.model === s.model));
         }
         if (s.preset !== undefined) {
             activePreset = s.preset || '';
@@ -620,6 +783,9 @@ async function generate() {
             showOutputState('result');
             showToast('Image generated!', 'success');
             loadHistory();
+            if (window.innerWidth <= 768) {
+                outputResult.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }
         } else {
             throw new Error(data.error || 'Unknown error occurred');
         }
@@ -656,6 +822,7 @@ function setGenerateButtonLoading(loading) {
     generateBtn.disabled = loading;
     generateBtnText.style.display    = loading ? 'none'        : 'inline';
     generateBtnLoading.style.display = loading ? 'inline-flex' : 'none';
+    if (mobileGenerateBtn) mobileGenerateBtn.disabled = loading;
 }
 
 // ── Download ──────────────────────────────────────────────────────────────────

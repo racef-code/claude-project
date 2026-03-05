@@ -142,10 +142,33 @@ header p  { color: var(--text-secondary); font-size: 1rem; }
 }
 .nav-logout:hover { border-color: #ef4444; color: #ef4444; }
 
-@media (max-width: 900px) {
+@media (max-width: 900px) and (min-width: 769px) {
     .nav-bar { flex-direction: column; gap: 0.75rem; text-align: center; }
     .nav-brand { width: 100%; }
     .nav-links  { width: 100%; justify-content: center; }
+}
+
+@media (max-width: 600px) and (min-width: 769px) {
+    .nav-links { gap: 0.3rem; flex-wrap: wrap; justify-content: center; }
+    .nav-username { display: none; }
+}
+
+@media (max-width: 768px) {
+    header {
+        padding: 0.3rem 0;
+        margin-bottom: 0;
+    }
+    .nav-bar {
+        flex-direction: row;
+        gap: 0.4rem;
+        flex-wrap: nowrap;
+        align-items: center;
+    }
+    .nav-brand h1, .nav-brand p { display: none; }
+    .nav-link { display: none; }
+    .nav-username { display: none; }
+    .nav-logout { font-size: 0.75rem; padding: 0.3rem 0.6rem; }
+    .nav-logo { height: auto !important; width: 140px !important; }
 }
 
 /* ── Catalog Grid ─────────────────────────────────────────────────────────── */
