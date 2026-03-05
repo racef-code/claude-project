@@ -13,14 +13,18 @@
         <div class="container">
             <nav class="nav-bar">
                 <div class="nav-brand">
-                    <img src="{{ url_for('static', filename='logo.png') }}" alt="NanoBanana" class="nav-logo">
+                    <img src="{{ url_for('static', filename='logo-dark.png') }}" alt="NanoBanana" class="nav-logo" id="navLogo">
                 </div>
                 <div class="nav-links">
-                    <a href="/" class="nav-link">Virtual Try-On</a>
-                    <a href="/playground" class="nav-link active">Playground</a>
-                    <button id="themeToggle" class="theme-toggle" title="Toggle dark mode"></button>
+                    <a href="/" class="nav-link" data-i18n="nav.tryon">Virtual Try-On</a>
+                    <a href="/playground" class="nav-link active" data-i18n="nav.playground">Playground</a>
+                    <div class="lang-toggle">
+                        <button class="lang-btn active" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="fr">FR</button>
+                    </div>
+                    <button id="themeToggle" class="theme-toggle" data-i18n-title="nav.theme" title="Toggle dark mode"></button>
                     <span class="nav-username">{{ username }}</span>
-                    <a href="/logout" class="nav-logout">Logout</a>
+                    <a href="/logout" class="nav-logout" data-i18n="nav.logout">Logout</a>
                 </div>
             </nav>
         </div>
@@ -38,23 +42,23 @@
                         <div class="mode-tabs">
                             <button class="mode-tab active" data-mode="text-to-image">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                                Text to Image
+                                <span data-i18n="mode.text-to-image">Text to Image</span>
                             </button>
                             <button class="mode-tab" data-mode="image-editing">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
-                                Edit Image
+                                <span data-i18n="mode.image-editing">Edit Image</span>
                             </button>
                             <button class="mode-tab" data-mode="style-transfer">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10"/></svg>
-                                Style Transfer
+                                <span data-i18n="mode.style-transfer">Style Transfer</span>
                             </button>
                             <button class="mode-tab" data-mode="inpainting">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="12" cy="12" r="3" stroke-dasharray="2 2"/></svg>
-                                Inpainting
+                                <span data-i18n="mode.inpainting">Inpainting</span>
                             </button>
                             <button class="mode-tab" data-mode="outpainting">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="6" y="6" width="12" height="12" rx="1"/><path d="M3 12h3M18 12h3M12 3v3M12 18v3"/></svg>
-                                Outpainting
+                                <span data-i18n="mode.outpainting">Outpainting</span>
                             </button>
                         </div>
                         <p id="modeDescription" class="mode-description">Generate images from text descriptions</p>
@@ -65,102 +69,120 @@
 
                     <!-- Prompt -->
                     <div class="prompt-header">
-                        <h2>Prompt</h2>
-                        <button id="optimizeBtn" class="optimize-btn" title="Enhance your prompt with AI">
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                            Optimize
-                        </button>
+                        <h2 data-i18n="prompt.heading">Prompt</h2>
+                        <div class="prompt-header-actions">
+                            <div class="preset-dropdown-wrapper" id="presetDropdownWrapper">
+                                <button class="btn btn-secondary btn-small" id="presetBtn">
+                                    🎨 <span data-i18n="preset.label">Preset</span>: <span id="presetLabel" data-i18n="preset.none">None</span>
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
+                                </button>
+                                <div class="preset-dropdown" id="presetDropdown">
+                                    <button class="preset-option active" data-preset="">✕ <span data-i18n="preset.none">None</span></button>
+                                    <button class="preset-option" data-preset="ecommerce">🛍️ E-Commerce</button>
+                                    <button class="preset-option" data-preset="product-detail">📦 Product Detail</button>
+                                    <button class="preset-option" data-preset="ghost-mannequin">👻 Ghost Mannequin</button>
+                                    <button class="preset-option" data-preset="flat-lay-clean">🧺 Flat Lay — Clean</button>
+                                    <button class="preset-option" data-preset="flat-lay-styled">🧺 Flat Lay — Styled</button>
+                                    <button class="preset-option" data-preset="hanger">🪝 Hanger Shot</button>
+                                    <button class="preset-option" data-preset="packshot">📦 Packshot</button>
+                                </div>
+                            </div>
+                            <button id="optimizeBtn" class="optimize-btn" data-i18n-title="prompt.optimize.title" title="Enhance your prompt with AI">
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+                                <span data-i18n="prompt.optimize">Optimize</span>
+                            </button>
+                        </div>
                     </div>
-                    <textarea id="promptInput" placeholder="Describe what you want to generate...&#10;Example: A serene mountain landscape at sunset with vibrant orange clouds"></textarea>
+                    <textarea id="promptInput" data-i18n-placeholder="prompt.placeholder" placeholder="Describe what you want to generate...&#10;Example: A serene mountain landscape at sunset with vibrant orange clouds"></textarea>
 
                     <!-- Model Selector -->
                     <div class="model-selector">
                         <button class="model-btn active" data-model="gemini-2.5-flash-image">
                             <span class="model-icon">⚡</span>
                             <span class="model-name">NanoBanana</span>
-                            <span class="model-desc">Fast</span>
+                            <span class="model-desc" data-i18n="model.fast">Fast</span>
                         </button>
                         <button class="model-btn" data-model="gemini-3.1-flash-image-preview">
                             <span class="model-icon">✨</span>
                             <span class="model-name">NanoBanana 2</span>
-                            <span class="model-desc">Balanced</span>
+                            <span class="model-desc" data-i18n="model.balanced">Balanced</span>
                         </button>
                         <button class="model-btn" data-model="gemini-3-pro-image-preview">
                             <span class="model-icon">🏆</span>
                             <span class="model-name">NanoBanana Pro</span>
-                            <span class="model-desc">Best quality</span>
+                            <span class="model-desc" data-i18n="model.best">Best quality</span>
                         </button>
                     </div>
 
                     <!-- Negative Prompt -->
                     <button id="negativePromptToggle" class="negative-prompt-toggle">
                         <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                        Negative Prompt
+                        <span data-i18n="neg.toggle">Negative Prompt</span>
                     </button>
-                    <textarea id="negativePromptInput" placeholder="What to avoid in the image... (e.g. blurry, watermark, bad anatomy)" style="display:none;"></textarea>
+                    <textarea id="negativePromptInput" data-i18n-placeholder="neg.placeholder" placeholder="What to avoid in the image... (e.g. blurry, watermark, bad anatomy)" style="display:none;"></textarea>
 
                     <!-- Settings -->
                     <div class="settings-section">
                         <div class="settings-header" id="settingsToggle">
-                            <h3>⚙ Settings</h3>
+                            <h3 data-i18n="settings.title">⚙ Settings</h3>
                             <svg id="settingsArrow" class="settings-arrow" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="6 9 12 15 18 9"/></svg>
                         </div>
                         <div id="settingsPanel" class="settings-panel">
 
                             <!-- Aspect Ratio -->
                             <div class="setting-group">
-                                <label for="aspectRatioSelect">Aspect Ratio</label>
+                                <label for="aspectRatioSelect" data-i18n="settings.aspect">Aspect Ratio</label>
                                 <select id="aspectRatioSelect">
-                                    <option value="">Auto (Default)</option>
-                                    <option value="1:1">1:1 — Square</option>
-                                    <option value="4:3">4:3 — Landscape</option>
-                                    <option value="3:4">3:4 — Portrait</option>
-                                    <option value="16:9">16:9 — Widescreen</option>
-                                    <option value="9:16">9:16 — Vertical</option>
-                                    <option value="3:2">3:2 — Photo</option>
-                                    <option value="2:3">2:3 — Photo Portrait</option>
-                                    <option value="21:9">21:9 — Ultrawide</option>
+                                    <option value="" data-i18n="settings.aspect.auto">Auto (Default)</option>
+                                    <option value="1:1" data-i18n="settings.aspect.sq">1:1 — Square</option>
+                                    <option value="4:3" data-i18n="settings.aspect.ls">4:3 — Landscape</option>
+                                    <option value="3:4" data-i18n="settings.aspect.pt">3:4 — Portrait</option>
+                                    <option value="16:9" data-i18n="settings.aspect.ws">16:9 — Widescreen</option>
+                                    <option value="9:16" data-i18n="settings.aspect.vt">9:16 — Vertical</option>
+                                    <option value="3:2" data-i18n="settings.aspect.ph">3:2 — Photo</option>
+                                    <option value="2:3" data-i18n="settings.aspect.php">2:3 — Photo Portrait</option>
+                                    <option value="21:9" data-i18n="settings.aspect.uw">21:9 — Ultrawide</option>
                                 </select>
                             </div>
 
                             <!-- Resolution -->
                             <div class="setting-group">
-                                <label for="imageSizeSelect">Resolution</label>
+                                <label for="imageSizeSelect" data-i18n="settings.res">Resolution</label>
                                 <select id="imageSizeSelect">
-                                    <option value="">Auto (Default)</option>
-                                    <option value="1K">1K — 1024px</option>
-                                    <option value="2K">2K — 2048px</option>
-                                    <option value="4K">4K — 4096px (Pro only)</option>
+                                    <option value="" data-i18n="settings.res.auto">Auto (Default)</option>
+                                    <option value="1K" data-i18n="settings.res.1k">1K — 1024px</option>
+                                    <option value="2K" data-i18n="settings.res.2k">2K — 2048px</option>
+                                    <option value="4K" data-i18n="settings.res.4k">4K — 4096px (Pro only)</option>
                                 </select>
                             </div>
 
                             <!-- Temperature -->
                             <div class="setting-group">
-                                <label>Creativity (Temperature)</label>
+                                <label data-i18n="settings.temp">Creativity (Temperature)</label>
                                 <div class="slider-row">
                                     <input type="range" id="temperatureSlider" min="0" max="2" step="0.1" value="1.0">
                                     <span class="slider-value" id="temperatureValue">1.0</span>
                                 </div>
-                                <p class="setting-hint">Lower = precise &nbsp;|&nbsp; Higher = creative</p>
+                                <p class="setting-hint" data-i18n="settings.temp.hint">Lower = precise &nbsp;|&nbsp; Higher = creative</p>
                             </div>
 
                             <!-- Seed -->
                             <div class="setting-group">
-                                <label for="seedInput">Seed (reproducibility)</label>
+                                <label for="seedInput" data-i18n="settings.seed">Seed (reproducibility)</label>
                                 <div class="seed-row">
-                                    <input type="number" id="seedInput" placeholder="Random" min="0" max="2147483647">
-                                    <button class="btn-dice" id="randomSeedBtn" title="Random seed">🎲</button>
+                                    <input type="number" id="seedInput" data-i18n-placeholder="settings.seed.ph" placeholder="Random" min="0" max="2147483647">
+                                    <button class="btn-dice" id="randomSeedBtn" data-i18n-title="settings.seed.title" title="Random seed">🎲</button>
                                 </div>
-                                <p class="setting-hint">Same seed + same prompt = same result</p>
+                                <p class="setting-hint" data-i18n="settings.seed.hint">Same seed + same prompt = same result</p>
                             </div>
 
                             <!-- Google Search -->
                             <div class="setting-group">
                                 <label class="checkbox-label">
                                     <input type="checkbox" id="googleSearchToggle">
-                                    <span>Enable Google Search grounding</span>
+                                    <span data-i18n="settings.search">Enable Google Search grounding</span>
                                 </label>
-                                <p class="setting-hint">Ground generation with real-time web information</p>
+                                <p class="setting-hint" data-i18n="settings.search.hint">Ground generation with real-time web information</p>
                             </div>
 
                         </div>
@@ -168,13 +190,13 @@
 
                     <!-- Source Image -->
                     <div class="image-upload-section" id="sourceImageSection">
-                        <h3 id="sourceImageTitle">Reference Image (Optional)</h3>
+                        <h3 id="sourceImageTitle" data-i18n="src.title.optional">Reference Image (Optional)</h3>
                         <div id="imageUploadArea" class="image-upload-area">
                             <input type="file" id="imageInput" accept="image/*" style="display: none;">
                             <div id="uploadPlaceholder" class="upload-placeholder">
                                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                                <p id="uploadPlaceholderText">Click to add an image</p>
-                                <p class="hint" id="uploadPlaceholderHint">This image will be sent along with your prompt</p>
+                                <p id="uploadPlaceholderText" data-i18n="src.click">Click to add an image</p>
+                                <p class="hint" id="uploadPlaceholderHint" data-i18n="src.hint">This image will be sent along with your prompt</p>
                             </div>
                             <div id="imagePreviewContainer" class="image-preview-container" style="display: none;">
                                 <img id="imagePreview" class="image-preview" alt="Preview">
@@ -186,8 +208,8 @@
                     <!-- Inpaint Canvas -->
                     <div class="image-upload-section" id="maskImageSection" style="display: none;">
                         <div class="inpaint-header">
-                            <h3>Paint Mask <span class="required-badge">Required</span></h3>
-                            <p class="setting-hint">Paint black over the area you want the AI to modify</p>
+                            <h3><span data-i18n="mask.title">Paint Mask</span> <span class="required-badge">Required</span></h3>
+                            <p class="setting-hint" data-i18n="mask.hint">Paint black over the area you want the AI to modify</p>
                         </div>
 
                         <!-- Canvas toolbar -->
@@ -195,47 +217,47 @@
                             <div class="inpaint-tool-group">
                                 <button class="inpaint-tool active" id="brushTool" title="Soft brush">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                                    Brush
+                                    <span data-i18n="mask.brush">Brush</span>
                                 </button>
                                 <button class="inpaint-tool" id="eraseTool" title="Erase brush strokes only">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16l11-11 7 7-1 8z"/><path d="M6 11l7 7"/></svg>
-                                    Erase
+                                    <span data-i18n="mask.erase">Erase</span>
                                 </button>
                                 <button class="inpaint-tool" id="rectTool" title="Rectangle fill">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
-                                    Rect
+                                    <span data-i18n="mask.rect">Rect</span>
                                 </button>
                                 <button class="inpaint-tool" id="ellipseTool" title="Ellipse fill">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
-                                    Ellipse
+                                    <span data-i18n="mask.ellipse">Ellipse</span>
                                 </button>
                             </div>
                             <div class="inpaint-tool-group">
-                                <label class="brush-size-label">Size</label>
+                                <label class="brush-size-label" data-i18n="mask.size">Size</label>
                                 <input type="range" id="brushSize" min="5" max="80" value="25" class="brush-size-slider">
                                 <span id="brushSizeVal" class="brush-size-val">25</span>
                             </div>
                             <div class="inpaint-tool-group">
-                                <label class="brush-size-label">Hardness</label>
+                                <label class="brush-size-label" data-i18n="mask.hardness">Hardness</label>
                                 <input type="range" id="brushHardness" min="0" max="100" value="80" class="brush-size-slider">
                                 <span id="brushHardnessVal" class="brush-size-val">80</span>
                             </div>
                             <div class="inpaint-tool-group">
                                 <button class="inpaint-action-btn" id="undoMaskBtn" title="Undo last stroke">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                                    Undo
+                                    <span data-i18n="mask.undo">Undo</span>
                                 </button>
                                 <button class="inpaint-action-btn" id="clearMaskBtn" title="Clear all brush strokes">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                                    Clear
+                                    <span data-i18n="mask.clear">Clear</span>
                                 </button>
                                 <button class="inpaint-action-btn" id="expandCanvasBtn" title="Expand canvas for outpainting">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>
-                                    Expand
+                                    <span data-i18n="mask.expand">Expand</span>
                                 </button>
                                 <button class="inpaint-action-btn" id="fullscreenMaskBtn" title="Edit fullscreen">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                                    Fullscreen
+                                    <span data-i18n="mask.fullscreen">Fullscreen</span>
                                 </button>
                             </div>
                         </div>
@@ -244,39 +266,38 @@
                         <div id="expansionPanel" class="expansion-panel" style="display:none;">
                             <div class="expansion-grid">
                                 <div class="expansion-field">
-                                    <label>Top (px)</label>
+                                    <label data-i18n="mask.top">Top (px)</label>
                                     <input type="number" id="expTop" min="0" max="512" value="0" class="expansion-input">
                                 </div>
                                 <div class="expansion-field">
-                                    <label>Bottom (px)</label>
+                                    <label data-i18n="mask.bottom">Bottom (px)</label>
                                     <input type="number" id="expBottom" min="0" max="512" value="0" class="expansion-input">
                                 </div>
                                 <div class="expansion-field">
-                                    <label>Left (px)</label>
+                                    <label data-i18n="mask.left">Left (px)</label>
                                     <input type="number" id="expLeft" min="0" max="512" value="0" class="expansion-input">
                                 </div>
                                 <div class="expansion-field">
-                                    <label>Right (px)</label>
+                                    <label data-i18n="mask.right">Right (px)</label>
                                     <input type="number" id="expRight" min="0" max="512" value="0" class="expansion-input">
                                 </div>
                             </div>
                             <div class="expansion-actions">
-                                <button class="inpaint-action-btn" id="applyExpansionBtn">Apply</button>
-                                <button class="inpaint-action-btn" id="resetExpansionBtn">Reset</button>
+                                <button class="inpaint-action-btn" id="applyExpansionBtn" data-i18n="mask.apply">Apply</button>
+                                <button class="inpaint-action-btn" id="resetExpansionBtn" data-i18n="mask.reset">Reset</button>
                             </div>
                         </div>
 
-                        <!-- Canvas container (image bg + mask layer stacked) -->
+                        <!-- Canvas container -->
                         <div id="inpaintCanvasWrap" class="inpaint-canvas-wrap">
                             <div id="inpaintPrompt" class="inpaint-prompt">
                                 <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                                <p>Upload a source image above to start painting</p>
+                                <p data-i18n="mask.upload.prompt">Upload a source image above to start painting</p>
                             </div>
-                            <!-- bg = image (never touched), mask = black strokes only -->
                             <canvas id="inpaintBg" style="display:none;"></canvas>
                             <canvas id="inpaintMask" style="display:none;"></canvas>
                         </div>
-                        <p class="setting-hint" style="margin-top:0.5rem;">Black areas = region the AI will modify</p>
+                        <p class="setting-hint" style="margin-top:0.5rem;" data-i18n="mask.black.hint">Black areas = region the AI will modify</p>
                     </div>
 
                     <!-- Fullscreen inpaint modal -->
@@ -286,44 +307,44 @@
                                 <div class="inpaint-tool-group">
                                     <button class="inpaint-tool active" id="fsBrushTool">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19l7-7 3 3-7 7-3-3z"/><path d="M18 13l-1.5-7.5L2 2l3.5 14.5L13 18l5-5z"/></svg>
-                                        Brush
+                                        <span data-i18n="mask.brush">Brush</span>
                                     </button>
                                     <button class="inpaint-tool" id="fsEraseTool">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20 20H7L3 16l11-11 7 7-1 8z"/><path d="M6 11l7 7"/></svg>
-                                        Erase
+                                        <span data-i18n="mask.erase">Erase</span>
                                     </button>
                                     <button class="inpaint-tool" id="fsRectTool" title="Rectangle fill">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="5" width="18" height="14" rx="1"/></svg>
-                                        Rect
+                                        <span data-i18n="mask.rect">Rect</span>
                                     </button>
                                     <button class="inpaint-tool" id="fsEllipseTool" title="Ellipse fill">
                                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="12" rx="10" ry="7"/></svg>
-                                        Ellipse
+                                        <span data-i18n="mask.ellipse">Ellipse</span>
                                     </button>
                                 </div>
                                 <div class="inpaint-tool-group">
-                                    <label class="brush-size-label">Size</label>
+                                    <label class="brush-size-label" data-i18n="mask.size">Size</label>
                                     <input type="range" id="fsBrushSize" min="5" max="120" value="25" class="brush-size-slider">
                                     <span id="fsBrushSizeVal" class="brush-size-val">25</span>
                                 </div>
                                 <div class="inpaint-tool-group">
-                                    <label class="brush-size-label">Hardness</label>
+                                    <label class="brush-size-label" data-i18n="mask.hardness">Hardness</label>
                                     <input type="range" id="fsBrushHardness" min="0" max="100" value="80" class="brush-size-slider">
                                     <span id="fsBrushHardnessVal" class="brush-size-val">80</span>
                                 </div>
                                 <div class="inpaint-tool-group">
                                     <button class="inpaint-action-btn" id="fsUndoBtn">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="9 14 4 9 9 4"/><path d="M20 20v-7a4 4 0 0 0-4-4H4"/></svg>
-                                        Undo
+                                        <span data-i18n="mask.undo">Undo</span>
                                     </button>
                                     <button class="inpaint-action-btn" id="fsClearBtn">
                                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14H6L5 6"/></svg>
-                                        Clear
+                                        <span data-i18n="mask.clear">Clear</span>
                                     </button>
                                 </div>
                                 <button class="inpaint-action-btn inpaint-close-btn" id="closeInpaintModal">
                                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
-                                    Done
+                                    <span data-i18n="mask.done">Done</span>
                                 </button>
                             </div>
                             <div class="inpaint-modal-canvas-wrap">
@@ -336,13 +357,13 @@
 
                     <!-- Style Image -->
                     <div class="image-upload-section" id="styleImageSection" style="display: none;">
-                        <h3>Style Reference <span class="required-badge">Required</span></h3>
+                        <h3><span data-i18n="style.title">Style Reference</span> <span class="required-badge">Required</span></h3>
                         <div id="styleUploadArea" class="image-upload-area style-upload">
                             <input type="file" id="styleInput" accept="image/*" style="display: none;">
                             <div id="stylePlaceholder" class="upload-placeholder">
                                 <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r="2.5"/><circle cx="17.5" cy="10.5" r="2.5"/><circle cx="8.5" cy="7.5" r="2.5"/><circle cx="6.5" cy="12.5" r="2.5"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10"/></svg>
-                                <p>Click to add style reference</p>
-                                <p class="hint">Style from this image will be applied</p>
+                                <p data-i18n="style.click">Click to add style reference</p>
+                                <p class="hint" data-i18n="style.hint">Style from this image will be applied</p>
                             </div>
                             <div id="stylePreviewContainer" class="image-preview-container" style="display: none;">
                                 <img id="stylePreview" class="image-preview" alt="Style">
@@ -353,9 +374,9 @@
 
                     <!-- Generate -->
                     <button id="generateBtn" class="btn btn-generate">
-                        <span id="generateBtnText">Generate</span>
+                        <span id="generateBtnText" data-i18n="generate.btn">Generate</span>
                         <span id="generateBtnLoading" style="display: none;">
-                            <span class="btn-spinner"></span>Generating...
+                            <span class="btn-spinner"></span><span data-i18n="generate.loading">Generating...</span>
                         </span>
                     </button>
                 </div>
@@ -365,15 +386,15 @@
             <div class="playground-output">
                 <div class="output-card">
                     <div class="output-header">
-                        <h2>Result</h2>
+                        <h2 data-i18n="output.title">Result</h2>
                         <div id="outputActions" class="output-actions" style="display: none;">
-                            <button id="expandBtn" class="btn btn-secondary btn-small" title="Fullscreen">
+                            <button id="expandBtn" class="btn btn-secondary btn-small" data-i18n-title="output.fullscreen" title="Fullscreen">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M8 3H5a2 2 0 0 0-2 2v3m18 0V5a2 2 0 0 0-2-2h-3m0 18h3a2 2 0 0 0 2-2v-3M3 16v3a2 2 0 0 0 2 2h3"/></svg>
-                                Fullscreen
+                                <span data-i18n="output.fullscreen">Fullscreen</span>
                             </button>
                             <button id="downloadBtn" class="btn btn-secondary btn-small">
                                 <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                Download
+                                <span data-i18n="output.download">Download</span>
                             </button>
                         </div>
                     </div>
@@ -381,19 +402,19 @@
                     <div id="outputContainer" class="output-container">
                         <div id="outputPlaceholder" class="output-placeholder">
                             <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
-                            <p>Your generated image will appear here</p>
-                            <p style="font-size:0.8rem; margin-top:0.5rem;">Press Ctrl+Enter to generate</p>
+                            <p data-i18n="output.placeholder">Your generated image will appear here</p>
+                            <p style="font-size:0.8rem; margin-top:0.5rem;" data-i18n="output.shortcut">Press Ctrl+Enter to generate</p>
                         </div>
 
                         <div id="outputLoading" class="output-loading" style="display: none;">
                             <div class="loading-spinner"></div>
-                            <p>Generating your image...</p>
+                            <p data-i18n="output.generating">Generating your image...</p>
                             <div class="output-progress">
                                 <div class="progress-bar-wrap">
                                     <div class="progress-bar-fill" id="progressFill"></div>
                                 </div>
                                 <div class="progress-info">
-                                    <span id="progressStatus">NanoBanana is working...</span>
+                                    <span id="progressStatus" data-i18n="output.status">NanoBanana is working...</span>
                                     <span id="progressTimer">0s</span>
                                 </div>
                             </div>
@@ -412,17 +433,17 @@
                     <!-- History Gallery -->
                     <div class="gallery-section">
                         <div class="gallery-header">
-                            <h3>History</h3>
+                            <h3 data-i18n="history.title">History</h3>
                             <div class="gallery-actions">
                                 <button id="downloadSelectedBtn" class="btn btn-secondary btn-small" style="display:none;">
                                     <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-                                    Download (<span id="selectedCount">0</span>)
+                                    <span data-i18n="history.download">Download</span> (<span id="selectedCount">0</span>)
                                 </button>
-                                <button id="clearHistoryBtn" class="btn btn-secondary btn-small">Clear</button>
+                                <button id="clearHistoryBtn" class="btn btn-secondary btn-small" data-i18n="history.clear">Clear</button>
                             </div>
                         </div>
                         <div id="galleryGrid" class="gallery-grid">
-                            <span class="gallery-empty">No generations yet</span>
+                            <span class="gallery-empty" data-i18n="history.empty">No generations yet</span>
                         </div>
                     </div>
                 </div>
@@ -433,6 +454,7 @@
 
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script src="{{ url_for('static', filename='js/playground.js') }}"></script>
 </body>
 </html>

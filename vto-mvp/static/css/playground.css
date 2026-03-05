@@ -7,6 +7,10 @@ header { margin-bottom: 1.5rem; padding: 0.5rem 0; }
     width: auto;
     object-fit: contain;
     display: block;
+    content: url('/static/logo-dark.png');
+}
+[data-theme="light"] .nav-logo {
+    content: url('/static/logo-light.png');
 }
 
 /* ── Mode Selector ────────────────────────────────────────────────────────── */
@@ -119,6 +123,66 @@ header { margin-bottom: 1.5rem; padding: 0.5rem 0; }
     margin-bottom: 0.5rem;
 }
 .prompt-header h2 { margin-bottom: 0; }
+
+.prompt-header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+/* ── Preset Dropdown ───────────────────────────────────────────────────────── */
+.preset-dropdown-wrapper {
+    position: relative;
+}
+
+#presetBtn {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    white-space: nowrap;
+}
+
+#presetBtn.preset-active {
+    background: var(--accent) !important;
+    border-color: var(--accent) !important;
+    color: white !important;
+}
+
+.preset-dropdown {
+    display: none;
+    position: absolute;
+    top: calc(100% + 6px);
+    left: 0;
+    z-index: 200;
+    background: var(--bg-secondary);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-md);
+    box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+    min-width: 210px;
+    overflow: hidden;
+}
+.preset-dropdown.open { display: block; }
+
+.preset-option {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    width: 100%;
+    padding: 0.55rem 1rem;
+    border: none;
+    background: none;
+    color: var(--text-primary);
+    font-size: 0.85rem;
+    text-align: left;
+    cursor: pointer;
+    transition: background var(--transition);
+}
+.preset-option:hover { background: var(--bg-tertiary); }
+.preset-option.active {
+    color: var(--accent);
+    font-weight: 600;
+    background: var(--accent-light, rgba(99,102,241,0.08));
+}
 
 .optimize-btn {
     display: inline-flex;

@@ -281,20 +281,70 @@ Generate the try-on image now."""
         return jsonify({'error': f'Server error: {str(e)}'}), 500
 
 
-def build_mode_prompt(mode, user_prompt, negative_prompt=None):
+STYLE_PRESETS = {
+    'ecommerce': (
+        "Pure white background, perfect studio strobe lighting, full garment visible "
+        "head to hem, no cropping, fabric texture sharp and detailed, colors true to "
+        "life, no shadows, no props, no artistic direction, medium format camera, "
+        "commercial product photography. "
+    ),
+    'product-detail': (
+        "Extreme close-up of fabric and construction, macro photography, stitching and "
+        "material texture as hero, dramatic raking light to reveal weave and surface "
+        "quality, no full body, no face, shallow depth of field, craftsmanship focus, "
+        "neutral background. "
+    ),
+    'ghost-mannequin': (
+        "Invisible mannequin effect, garment fully shaped and structured as if worn but "
+        "no body visible, clean neck opening, sleeve ends and hem naturally falling, "
+        "soft even studio lighting defining silhouette, pure white or very light neutral "
+        "background, no wrinkles, professional catalogue photography. "
+    ),
+    'flat-lay-clean': (
+        "Perfect top-down 90 degree overhead shot, garment flat and neatly arranged, "
+        "no perspective distortion, clean minimal background, soft natural shadow "
+        "grounding the garment, no props, no people, styling precise and intentional, "
+        "even diffused lighting, Pinterest-ready composition. "
+    ),
+    'flat-lay-styled': (
+        "Perfect top-down 90 degree overhead shot, garment styled with carefully chosen "
+        "lifestyle props — accessories, coffee cup, sunglasses, florals or relevant "
+        "objects — cohesive color story, editorial composition, soft natural light, "
+        "intentional negative space, Instagram and Pinterest optimized, aspirational "
+        "lifestyle feel. "
+    ),
+    'hanger': (
+        "Garment hanging naturally on a slim minimalist hanger, front-facing, full "
+        "garment visible, clean light neutral background, soft even studio lighting, "
+        "fabric draping naturally, no body, no mannequin, simple and clean, fast "
+        "fashion e-commerce standard. "
+    ),
+    'packshot': (
+        "Garment neatly folded or packaged as it would ship to a customer, clean "
+        "presentation on neutral or white background, soft even lighting, packaging "
+        "details visible if present, unboxing-ready aesthetic, honest product "
+        "representation, no styling, no people. "
+    ),
+}
+
+
+def build_mode_prompt(mode, user_prompt, negative_prompt=None, preset=None):
     """Build the appropriate prompt based on the generation mode"""
+    preset_prefix = STYLE_PRESETS.get(preset, '') if preset else ''
+    full_prompt = preset_prefix + user_prompt
+
     mode_prompts = {
-        'text-to-image': user_prompt,
+        'text-to-image': full_prompt,
         'image-editing': f"""You are an image editing assistant. Modify the provided image according to the instructions below.
 
 INSTRUCTIONS:
-{user_prompt}
+{full_prompt}
 
 Apply the changes naturally and seamlessly while preserving the overall composition and quality.""",
         'style-transfer': f"""You are a style transfer assistant. Apply the artistic style from the style reference image to the content image.
 
 INSTRUCTIONS:
-{user_prompt}
+{full_prompt}
 
 The first image is the content. The second image is the style reference.
 Preserve the structure of the content image while applying the colors, textures, and artistic techniques from the style reference.""",
@@ -303,18 +353,18 @@ Preserve the structure of the content image while applying the colors, textures,
 White areas in the mask = regions to modify. Black areas = preserve as-is.
 
 INSTRUCTIONS:
-{user_prompt}
+{full_prompt}
 
 Fill the masked area with content that blends seamlessly with the surrounding image.""",
         'outpainting': f"""You are an image outpainting assistant. Extend the image beyond its original boundaries.
 
 INSTRUCTIONS:
-{user_prompt}
+{full_prompt}
 
 Generate content that logically continues the scene, matching the style, lighting, and perspective of the original."""
     }
 
-    result = mode_prompts.get(mode, user_prompt)
+    result = mode_prompts.get(mode, full_prompt)
     if negative_prompt:
         result += f"\n\nIMPORTANT - Avoid the following: {negative_prompt}"
     return result
@@ -340,6 +390,7 @@ def generate():
         image_size = data.get('image_size')
         temperature = data.get('temperature', 1.0)
         seed = data.get('seed')
+        preset = data.get('preset')
 
         if not user_prompt:
             return jsonify({'error': 'Missing prompt'}), 400
@@ -347,9 +398,9 @@ def generate():
         if not GOOGLE_API_KEY:
             return jsonify({'error': 'GOOGLE_API_KEY not configured'}), 500
 
-        logger.info(f"Processing {mode} | model={model_name} | aspect={aspect_ratio} | size={image_size} | temp={temperature}")
+        logger.info(f"Processing {mode} | model={model_name} | preset={preset} | aspect={aspect_ratio} | size={image_size} | temp={temperature}")
 
-        prompt = build_mode_prompt(mode, user_prompt, negative_prompt)
+        prompt = build_mode_prompt(mode, user_prompt, negative_prompt, preset)
         contents = [prompt]
 
         if mode == 'text-to-image':

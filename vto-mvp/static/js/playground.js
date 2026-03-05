@@ -168,6 +168,11 @@ const selectedCountEl      = document.getElementById('selectedCount');
 const progressFill         = document.getElementById('progressFill');
 const progressTimer        = document.getElementById('progressTimer');
 const progressStatus       = document.getElementById('progressStatus');
+const presetBtn            = document.getElementById('presetBtn');
+const presetLabel          = document.getElementById('presetLabel');
+const presetDropdown       = document.getElementById('presetDropdown');
+
+let activePreset = '';
 
 // ── Init ──────────────────────────────────────────────────────────────────────
 document.addEventListener('DOMContentLoaded', () => {
@@ -188,6 +193,26 @@ function setupEventListeners() {
 
     // Settings toggle
     settingsToggle.onclick = toggleSettings;
+
+    // Preset dropdown
+    presetBtn.onclick = (e) => {
+        e.stopPropagation();
+        presetDropdown.classList.toggle('open');
+    };
+    document.addEventListener('click', () => presetDropdown.classList.remove('open'));
+    presetDropdown.querySelectorAll('.preset-option').forEach(opt => {
+        opt.onclick = (e) => {
+            e.stopPropagation();
+            activePreset = opt.dataset.preset;
+            presetLabel.textContent = activePreset ? opt.textContent.trim().replace(/^.\s*/, '') : 'None';
+            presetDropdown.querySelectorAll('.preset-option').forEach(o => o.classList.remove('active'));
+            opt.classList.add('active');
+            presetDropdown.classList.remove('open');
+            presetBtn.classList.toggle('preset-active', !!activePreset);
+            saveSettingsToStorage();
+            showToast(activePreset ? `Preset: ${opt.textContent.trim()}` : 'Preset cleared', 'info', 1500);
+        };
+    });
 
     // Model buttons
     modelBtns.forEach(btn => {
@@ -421,7 +446,8 @@ function getSettings() {
         image_size:   imageSizeSelect.value   || null,
         temperature:  parseFloat(temperatureSlider.value),
         seed:         seedInput.value ? parseInt(seedInput.value) : null,
-        negative_prompt: negativePromptInput.value.trim() || null
+        negative_prompt: negativePromptInput.value.trim() || null,
+        preset: activePreset || null,
     };
 }
 
@@ -450,6 +476,16 @@ function loadSettingsFromStorage() {
         if (s.mode && modeConfig[s.mode]) {
             currentMode = s.mode;
             modeTabs.forEach(tab => tab.classList.toggle('active', tab.dataset.mode === currentMode));
+        }
+        if (s.preset !== undefined) {
+            activePreset = s.preset || '';
+            const match = presetDropdown.querySelector(`[data-preset="${activePreset}"]`);
+            if (match) {
+                presetDropdown.querySelectorAll('.preset-option').forEach(o => o.classList.remove('active'));
+                match.classList.add('active');
+                presetLabel.textContent = activePreset ? match.textContent.trim().replace(/^.\s*/, '') : 'None';
+                presetBtn.classList.toggle('preset-active', !!activePreset);
+            }
         }
     } catch (e) {
         console.error('Failed to load settings:', e);

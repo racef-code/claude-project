@@ -12,15 +12,19 @@
         <div class="container">
             <nav class="nav-bar">
                 <div class="nav-brand">
-                    <h1>Virtual Try-On</h1>
-                    <p>See yourself in our collection</p>
+                    <h1 data-i18n="nav.tryon">Virtual Try-On</h1>
+                    <p data-i18n="index.tagline">See yourself in our collection</p>
                 </div>
                 <div class="nav-links">
-                    <a href="/" class="nav-link active">Virtual Try-On</a>
-                    <a href="/playground" class="nav-link">Playground</a>
-                    <button id="themeToggle" class="theme-toggle" title="Toggle dark mode"></button>
+                    <a href="/" class="nav-link active" data-i18n="nav.tryon">Virtual Try-On</a>
+                    <a href="/playground" class="nav-link" data-i18n="nav.playground">Playground</a>
+                    <div class="lang-toggle">
+                        <button class="lang-btn active" data-lang="en">EN</button>
+                        <button class="lang-btn" data-lang="fr">FR</button>
+                    </div>
+                    <button id="themeToggle" class="theme-toggle" data-i18n-title="nav.theme" title="Toggle dark mode"></button>
                     <span class="nav-username">{{ username }}</span>
-                    <a href="/logout" class="nav-logout">Logout</a>
+                    <a href="/logout" class="nav-logout" data-i18n="nav.logout">Logout</a>
                 </div>
             </nav>
         </div>
@@ -37,7 +41,7 @@
 
             <!-- Step 1: Upload -->
             <div id="modalStep1" class="modal-step active">
-                <h2>Upload Your Photo</h2>
+                <h2 data-i18n="modal.upload.title">Upload Your Photo</h2>
                 <p class="selected-item">Selected: <span id="selectedItemName"></span></p>
                 <div id="uploadArea" class="upload-area">
                     <input type="file" id="fileInput" accept="image/*" style="display: none;">
@@ -47,41 +51,41 @@
                             <polyline points="17 8 12 3 7 8"/>
                             <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
-                        <p>Click to upload or drag and drop</p>
-                        <p class="hint">JPG, PNG up to 10MB</p>
+                        <p data-i18n="modal.upload.drop">Click to upload or drag and drop</p>
+                        <p class="hint" data-i18n="modal.upload.hint">JPG, PNG up to 10MB</p>
                     </div>
                     <img id="uploadPreview" class="upload-preview" style="display: none;">
                 </div>
-                <button id="generateBtn" class="btn btn-primary" style="display: none;">Generate Try-On</button>
+                <button id="generateBtn" class="btn btn-primary" style="display: none;" data-i18n="modal.upload.btn">Generate Try-On</button>
             </div>
 
             <!-- Step 2: Loading -->
             <div id="modalLoading" class="modal-step">
                 <div class="loading-spinner"></div>
-                <p>Generating your try-on image...</p>
+                <p data-i18n="modal.loading.text">Generating your try-on image...</p>
                 <div class="progress-bar-wrap" style="max-width:300px; margin: 0.5rem auto;">
                     <div class="progress-bar-fill" id="tryOnProgressFill"></div>
                 </div>
                 <div class="progress-info" style="max-width:300px; margin: 0 auto;">
-                    <span>NanoBanana is working...</span>
+                    <span data-i18n="modal.loading.status">NanoBanana is working...</span>
                     <span id="tryOnTimer">0s</span>
                 </div>
-                <p class="hint" style="margin-top:0.5rem;">This may take 10-20 seconds</p>
+                <p class="hint" style="margin-top:0.5rem;" data-i18n="modal.loading.hint">This may take 10-20 seconds</p>
             </div>
 
             <!-- Step 3: Results with comparison slider -->
             <div id="modalResults" class="modal-step">
-                <h2>Your Virtual Try-On</h2>
-                <p class="hint" style="margin-bottom:1rem; color: var(--text-muted);">Drag the handle to compare before / after</p>
+                <h2 data-i18n="modal.result.title">Your Virtual Try-On</h2>
+                <p class="hint" style="margin-bottom:1rem; color: var(--text-muted);" data-i18n="modal.result.hint">Drag the handle to compare before / after</p>
 
                 <div id="comparisonSlider" class="comparison-slider" style="height: 400px; margin-bottom: 1.5rem;">
                     <div class="comparison-before">
                         <img id="originalImage" alt="Original photo" style="width:100%;height:400px;object-fit:cover;">
-                        <span class="comparison-label">Before</span>
+                        <span class="comparison-label" data-i18n="modal.result.before">Before</span>
                     </div>
                     <div class="comparison-after">
                         <img id="generatedImage" alt="Generated try-on" style="width:100%;height:400px;object-fit:cover;">
-                        <span class="comparison-label">After</span>
+                        <span class="comparison-label" data-i18n="modal.result.after">After</span>
                     </div>
                     <div class="comparison-handle">
                         <div class="comparison-handle-line"></div>
@@ -96,18 +100,18 @@
                 </div>
 
                 <div class="result-actions">
-                    <button id="downloadResultBtn" class="btn btn-secondary">Download Result</button>
-                    <button id="tryAnotherBtn" class="btn btn-secondary">Try Another</button>
-                    <button id="closeResultsBtn" class="btn btn-primary">Close</button>
+                    <button id="downloadResultBtn" class="btn btn-secondary" data-i18n="modal.result.download">Download Result</button>
+                    <button id="tryAnotherBtn" class="btn btn-secondary" data-i18n="modal.result.retry">Try Another</button>
+                    <button id="closeResultsBtn" class="btn btn-primary" data-i18n="modal.result.close">Close</button>
                 </div>
             </div>
 
             <!-- Step 4: Error -->
             <div id="modalError" class="modal-step">
                 <div class="error-message">
-                    <h2>Oops!</h2>
+                    <h2 data-i18n="modal.error.title">Oops!</h2>
                     <p id="errorText"></p>
-                    <button id="retryBtn" class="btn btn-primary">Try Again</button>
+                    <button id="retryBtn" class="btn btn-primary" data-i18n="modal.error.retry">Try Again</button>
                 </div>
             </div>
         </div>
@@ -115,6 +119,7 @@
 
     <script src="{{ url_for('static', filename='js/toast.js') }}"></script>
     <script src="{{ url_for('static', filename='js/utils.js') }}"></script>
+    <script src="{{ url_for('static', filename='js/i18n.js') }}"></script>
     <script src="{{ url_for('static', filename='js/main.js') }}"></script>
 </body>
 </html>
