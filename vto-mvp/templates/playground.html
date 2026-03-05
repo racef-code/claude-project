@@ -454,12 +454,12 @@
 
     <!-- ── Mobile prompt bar (pinned bottom) ── -->
     <div class="mobile-prompt-bar" id="mobilePromptBar">
+        <!-- Floating drawer button — circle anchored to top-right of bar -->
+        <button class="mobile-drawer-fab" id="mobileDrawerBtn" title="Settings">
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+        </button>
         <div class="mobile-bar-top">
-            <button class="mobile-bar-btn" id="mobileDrawerBtn" title="Settings">
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
-            </button>
             <span class="mobile-mode-label" id="mobileModeLabel" data-i18n="mode.text-to-image">Text to Image</span>
-            <div class="mobile-bar-spacer"></div>
         </div>
         <div class="mobile-bar-input-row">
             <button class="mobile-img-btn" id="mobileImgBtn" title="Attach image">
@@ -467,7 +467,7 @@
                 <img id="mobileImgThumb" class="mobile-img-thumb" style="display:none;" alt="">
             </button>
             <input type="file" id="mobileImgInput" accept="image/*" style="display:none;">
-            <textarea id="mobilePromptInput" class="mobile-prompt-input" rows="2" data-i18n-placeholder="prompt.placeholder" placeholder="Describe what you want to generate..."></textarea>
+            <textarea id="mobilePromptInput" class="mobile-prompt-input" data-i18n-placeholder="prompt.mobile.placeholder" placeholder="Describe your idea..."></textarea>
             <button class="mobile-generate-btn" id="mobileGenerateBtn" title="Generate">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
             </button>

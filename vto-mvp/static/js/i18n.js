@@ -46,6 +46,7 @@ const TRANSLATIONS = {
         // Playground — prompt area
         'prompt.heading':       'Prompt',
         'prompt.placeholder':   'Describe what you want to generate...\nExample: A serene mountain landscape at sunset with vibrant orange clouds',
+        'prompt.mobile.placeholder': 'Describe your idea...',
         'prompt.optimize':      'Optimize',
         'prompt.optimize.title':'Enhance your prompt with AI',
         'preset.label':         'Preset',
@@ -168,6 +169,7 @@ const TRANSLATIONS = {
         // Playground — prompt area
         'prompt.heading':       'Prompt',
         'prompt.placeholder':   'Décrivez ce que vous voulez générer...\nExemple : Un paysage de montagne au coucher du soleil',
+        'prompt.mobile.placeholder': 'Décrivez votre idée...',
         'prompt.optimize':      'Optimiser',
         'prompt.optimize.title':'Améliorer votre prompt avec l\'IA',
         'preset.label':         'Préréglage',
