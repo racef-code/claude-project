@@ -1,0 +1,115 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login — Virtual Try-On</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+    <style>
+        .login-page {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--bg-primary, #0a0a0a);
+        }
+        .login-card {
+            background: var(--bg-secondary, #141414);
+            border: 1px solid var(--border-color, #222);
+            border-radius: 12px;
+            padding: 2.5rem 2rem;
+            width: 100%;
+            max-width: 380px;
+        }
+        .login-brand {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+        .login-brand h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            color: var(--text-primary, #fff);
+            margin: 0 0 0.25rem;
+        }
+        .login-brand p {
+            font-size: 0.85rem;
+            color: var(--text-muted, #888);
+            margin: 0;
+        }
+        .login-form {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+        .form-group {
+            display: flex;
+            flex-direction: column;
+            gap: 0.4rem;
+        }
+        .form-group label {
+            font-size: 0.8rem;
+            font-weight: 500;
+            color: var(--text-secondary, #aaa);
+        }
+        .form-group input {
+            padding: 0.65rem 0.85rem;
+            border: 1px solid var(--border-color, #333);
+            border-radius: 8px;
+            background: var(--bg-tertiary, #1a1a1a);
+            color: var(--text-primary, #fff);
+            font-size: 0.9rem;
+            outline: none;
+            transition: border-color 0.15s;
+        }
+        .form-group input:focus {
+            border-color: var(--accent, #6366f1);
+        }
+        .login-btn {
+            margin-top: 0.5rem;
+            padding: 0.7rem;
+            background: var(--accent, #6366f1);
+            color: #fff;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.9rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.15s;
+        }
+        .login-btn:hover { opacity: 0.88; }
+        .login-error {
+            padding: 0.65rem 0.85rem;
+            background: rgba(239, 68, 68, 0.12);
+            border: 1px solid rgba(239, 68, 68, 0.35);
+            border-radius: 8px;
+            color: #f87171;
+            font-size: 0.85rem;
+            text-align: center;
+        }
+    </style>
+</head>
+<body>
+    <div class="login-page">
+        <div class="login-card">
+            <div class="login-brand">
+                <h1>Virtual Try-On</h1>
+                <p>Sign in to continue</p>
+            </div>
+            <form class="login-form" method="POST">
+                {% if error %}
+                <div class="login-error">{{ error }}</div>
+                {% endif %}
+                <div class="form-group">
+                    <label for="username">Username</label>
+                    <input type="text" id="username" name="username" autocomplete="username" autofocus required>
+                </div>
+                <div class="form-group">
+                    <label for="password">Password</label>
+                    <input type="password" id="password" name="password" autocomplete="current-password" required>
+                </div>
+                <button type="submit" class="login-btn">Sign in</button>
+            </form>
+        </div>
+    </div>
+</body>
+</html>
