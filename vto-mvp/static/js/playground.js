@@ -135,7 +135,7 @@ const errorText            = document.getElementById('errorText');
 const settingsToggle       = document.getElementById('settingsToggle');
 const settingsPanel        = document.getElementById('settingsPanel');
 const settingsArrow        = document.getElementById('settingsArrow');
-const modelSelect          = document.getElementById('modelSelect');
+const modelBtns            = document.querySelectorAll('.model-btn');
 const aspectRatioSelect    = document.getElementById('aspectRatioSelect');
 const imageSizeSelect      = document.getElementById('imageSizeSelect');
 const temperatureSlider    = document.getElementById('temperatureSlider');
@@ -187,8 +187,16 @@ function setupEventListeners() {
     // Settings toggle
     settingsToggle.onclick = toggleSettings;
 
-    // Settings save on change
-    modelSelect.onchange      = () => { validateImageSize(); saveSettingsToStorage(); };
+    // Model buttons
+    modelBtns.forEach(btn => {
+        btn.onclick = () => {
+            modelBtns.forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            validateImageSize();
+            saveSettingsToStorage();
+        };
+    });
+
     aspectRatioSelect.onchange = saveSettingsToStorage;
     imageSizeSelect.onchange  = () => { validateImageSize(); saveSettingsToStorage(); };
 
@@ -405,7 +413,7 @@ function validateImageSize() {
 
 function getSettings() {
     return {
-        model:        modelSelect.value,
+        model:        document.querySelector('.model-btn.active')?.dataset.model ?? 'gemini-2.5-flash-image',
         aspect_ratio: aspectRatioSelect.value || null,
         image_size:   imageSizeSelect.value   || null,
         temperature:  parseFloat(temperatureSlider.value),
@@ -424,7 +432,11 @@ function loadSettingsFromStorage() {
         const saved = localStorage.getItem('playground_settings');
         if (!saved) return;
         const s = JSON.parse(saved);
-        if (s.model)        modelSelect.value        = s.model;
+        if (s.model) {
+            modelBtns.forEach(b => {
+                b.classList.toggle('active', b.dataset.model === s.model);
+            });
+        }
         if (s.aspect_ratio) aspectRatioSelect.value  = s.aspect_ratio;
         if (s.image_size)   imageSizeSelect.value    = s.image_size;
         if (s.temperature != null) {

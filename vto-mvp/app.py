@@ -5,6 +5,7 @@ import io
 import uuid
 import time
 import logging
+import threading
 from functools import wraps
 from flask import Flask, render_template, request, jsonify, session, redirect, url_for
 from dotenv import load_dotenv
@@ -20,13 +21,18 @@ BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # Load environment variables from the .env next to this file
 load_dotenv(os.path.join(BASE_DIR, '.env'))
 
-# Logging
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
-
 app = Flask(__name__)
 app.config['MAX_CONTENT_LENGTH'] = 16 * 1024 * 1024  # 16MB max file size
 app.secret_key = os.getenv("FLASK_SECRET_KEY", os.urandom(24))
+
+# Logging — configured after app creation so Flask doesn't override it
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s [%(levelname)s] %(message)s',
+    datefmt='%H:%M:%S',
+)
+logger = logging.getLogger(__name__)
+
 if not os.getenv("FLASK_SECRET_KEY"):
     logger.warning("FLASK_SECRET_KEY not set — sessions will not persist across restarts")
 
@@ -42,6 +48,31 @@ for i in range(1, 4):
     password = os.getenv(f"USER{i}_PASSWORD", "").strip()
     if username and password:
         USERS[username] = password
+
+# Dropbox config
+DROPBOX_TOKEN = os.getenv("DROPBOX_TOKEN")
+DROPBOX_FOLDER = os.getenv("DROPBOX_FOLDER", "/images")
+
+
+def upload_to_dropbox(image_b64: str, filename: str):
+    """Upload a base64 image to Dropbox in a background thread. Errors are logged, never raised."""
+    if not DROPBOX_TOKEN:
+        return
+    try:
+        import dropbox
+        image_bytes = base64.b64decode(image_b64)
+        dest_path = f"{DROPBOX_FOLDER.rstrip('/')}/{filename}"
+        dbx = dropbox.Dropbox(DROPBOX_TOKEN)
+        dbx.files_upload(image_bytes, dest_path, mute=True)
+        logger.info(f"Dropbox upload success: {dest_path}")
+    except Exception as e:
+        logger.error(f"Dropbox upload failed for {filename}: {e}")
+
+
+def dropbox_upload_async(image_b64: str, filename: str):
+    """Fire-and-forget Dropbox upload — runs in a daemon thread."""
+    t = threading.Thread(target=upload_to_dropbox, args=(image_b64, filename), daemon=True)
+    t.start()
 
 
 def login_required(f):
@@ -107,14 +138,14 @@ def save_to_history(session_id, entry):
 @app.route('/login', methods=['GET', 'POST'])
 def login():
     if 'username' in session:
-        return redirect(url_for('index'))
+        return redirect(url_for('playground'))
     error = None
     if request.method == 'POST':
         username = request.form.get('username', '').strip()
         password = request.form.get('password', '').strip()
         if username in USERS and USERS[username] == password:
             session['username'] = username
-            next_page = request.args.get('next', '/')
+            next_page = request.args.get('next', '/playground')
             return redirect(next_page)
         error = 'Invalid username or password'
     return render_template('login.html', error=error)
@@ -149,7 +180,6 @@ def get_catalog():
 def get_history():
     session_id = get_session_id()
     history = generation_history.get(session_id, [])
-    # Return without full image data for listing (just thumbnail info)
     return jsonify(history)
 
 
@@ -226,6 +256,10 @@ Generate the try-on image now."""
 
         logger.info("Successfully generated try-on image")
 
+        # Upload to Dropbox in background
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        dropbox_upload_async(generated_image_b64, f"tryon_{ts}_{session['username']}_{item_id}.png")
+
         # Save to history
         session_id = get_session_id()
         save_to_history(session_id, {
@@ -301,7 +335,6 @@ def generate():
         style_b64 = data.get('style_image')
         negative_prompt = data.get('negative_prompt')
 
-        # Settings - now all actually used
         model_name = data.get('model', 'gemini-2.5-flash-image')
         aspect_ratio = data.get('aspect_ratio')
         image_size = data.get('image_size')
@@ -319,7 +352,6 @@ def generate():
         prompt = build_mode_prompt(mode, user_prompt, negative_prompt)
         contents = [prompt]
 
-        # Add images based on mode
         if mode == 'text-to-image':
             if image_b64:
                 contents.append(decode_base64_image(image_b64))
@@ -342,14 +374,12 @@ def generate():
             contents.append(decode_base64_image(image_b64))
             contents.append(decode_base64_image(mask_b64))
 
-        # Build image config
         image_config_kwargs = {}
         if aspect_ratio:
             image_config_kwargs['aspect_ratio'] = aspect_ratio
         if image_size:
             image_config_kwargs['image_size'] = image_size
 
-        # Build generation config
         config_kwargs = {
             'response_modalities': ["IMAGE"],
             'temperature': float(temperature),
@@ -371,7 +401,6 @@ def generate():
         generated_image_b64 = extract_image_from_response(response)
 
         if not generated_image_b64:
-            # Try to get text response for debugging
             text_parts = [p.text for p in response.parts if hasattr(p, 'text') and p.text]
             error_msg = 'No image generated by the model.'
             if text_parts:
@@ -379,6 +408,10 @@ def generate():
             return jsonify({'error': error_msg}), 500
 
         logger.info(f"Successfully generated image | mode={mode}")
+
+        # Upload to Dropbox in background
+        ts = time.strftime("%Y%m%d_%H%M%S")
+        dropbox_upload_async(generated_image_b64, f"{mode}_{ts}_{session['username']}.png")
 
         # Save to history
         session_id = get_session_id()
@@ -401,6 +434,27 @@ def generate():
     except Exception as e:
         logger.exception("Error in generate")
         return jsonify({'error': f'Server error: {str(e)}'}), 500
+
+
+@app.route('/dropbox-status')
+@login_required
+def dropbox_status():
+    if not DROPBOX_TOKEN:
+        return jsonify({'connected': False, 'error': 'DROPBOX_TOKEN not set'})
+    try:
+        import dropbox
+        dbx = dropbox.Dropbox(DROPBOX_TOKEN)
+        result = dbx.files_list_folder(DROPBOX_FOLDER)
+        files = [e.name for e in result.entries if isinstance(e, dropbox.files.FileMetadata)]
+        files.sort(reverse=True)
+        return jsonify({
+            'connected': True,
+            'folder': DROPBOX_FOLDER,
+            'file_count': len(files),
+            'latest_file': files[0] if files else None,
+        })
+    except Exception as e:
+        return jsonify({'connected': False, 'error': str(e)})
 
 
 @app.route('/optimize-prompt', methods=['POST'])
