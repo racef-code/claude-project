@@ -4,6 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>AI Playground - NanoBanana</title>
+    <link rel="icon" href="{{ url_for('static', filename='favicon.ico') }}" type="image/x-icon">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
     <link rel="stylesheet" href="{{ url_for('static', filename='css/playground.css') }}">
 </head>
@@ -12,8 +13,7 @@
         <div class="container">
             <nav class="nav-bar">
                 <div class="nav-brand">
-                    <h1>AI Playground</h1>
-                    <p>Direct prompting with NanoBanana</p>
+                    <img src="{{ url_for('static', filename='logo.png') }}" alt="NanoBanana" class="nav-logo">
                 </div>
                 <div class="nav-links">
                     <a href="/" class="nav-link">Virtual Try-On</a>
@@ -413,7 +413,13 @@
                     <div class="gallery-section">
                         <div class="gallery-header">
                             <h3>History</h3>
-                            <button id="clearHistoryBtn" class="btn btn-secondary btn-small">Clear</button>
+                            <div class="gallery-actions">
+                                <button id="downloadSelectedBtn" class="btn btn-secondary btn-small" style="display:none;">
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                                    Download (<span id="selectedCount">0</span>)
+                                </button>
+                                <button id="clearHistoryBtn" class="btn btn-secondary btn-small">Clear</button>
+                            </div>
                         </div>
                         <div id="galleryGrid" class="gallery-grid">
                             <span class="gallery-empty">No generations yet</span>

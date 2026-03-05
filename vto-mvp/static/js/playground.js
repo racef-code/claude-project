@@ -39,11 +39,11 @@ const modeConfig = {
         showStyle: false,
         promptPlaceholder: 'Describe what you want to generate...\nExample: A serene mountain landscape at sunset with vibrant orange and purple clouds',
         templates: [
-            'A photorealistic portrait of a person in soft studio lighting',
-            'Abstract digital art with neon colors and geometric shapes',
-            'A cozy coffee shop interior in the morning, warm light',
-            'Fantasy landscape with floating islands and waterfalls',
-            'Product photo of a minimalist watch on white background'
+            'A flat lay of a stylish summer outfit on white background, natural light',
+            'Product photo of a luxury handbag on a clean marble surface',
+            'A model wearing a tailored suit in a modern urban setting',
+            'Close-up of fabric texture showing fine stitching and material detail',
+            'A capsule wardrobe collection arranged neatly, editorial style'
         ]
     },
     'image-editing': {
@@ -55,11 +55,11 @@ const modeConfig = {
         showStyle: false,
         promptPlaceholder: 'Describe what changes you want to make...\nExample: Change the sky to a starry night, add a rainbow, make the colors more vibrant',
         templates: [
-            'Change the background to a tropical beach at sunset',
-            'Add dramatic storm clouds to the sky',
-            'Make the lighting golden hour, warm tones',
-            'Convert to black and white with high contrast',
-            'Remove all text and logos, keep the scene'
+            'Change the background to a clean white studio backdrop',
+            'Replace the background with a luxury boutique interior',
+            'Make the lighting look like a professional fashion shoot',
+            'Convert to a high-contrast editorial black and white look',
+            'Remove wrinkles and make the garment look freshly pressed'
         ]
     },
     'style-transfer': {
@@ -71,11 +71,11 @@ const modeConfig = {
         showStyle: true,
         promptPlaceholder: 'Describe the style transformation...\nExample: Transform this into a watercolor painting, apply the artistic style from the reference',
         templates: [
-            'Apply the painterly watercolor style to my photo',
-            'Transform into a pencil sketch with hatching',
-            'Apply the impressionist painting style',
-            'Make it look like a vintage oil painting',
-            'Apply a cyberpunk neon aesthetic'
+            'Apply a high-fashion Vogue editorial aesthetic',
+            'Transform into a vintage 90s fashion magazine style',
+            'Apply a clean minimalist Scandinavian fashion look',
+            'Make it look like a streetwear lookbook photo',
+            'Apply a luxury brand campaign aesthetic, cinematic lighting'
         ]
     },
     'inpainting': {
@@ -87,11 +87,11 @@ const modeConfig = {
         showStyle: false,
         promptPlaceholder: 'Describe what to put in the masked area...\nExample: Replace with a beautiful garden, add a cat sitting there, remove the object',
         templates: [
-            'Fill with a realistic continuation of the surroundings',
-            'Place a cute puppy in this area',
-            'Add beautiful flowers growing here',
-            'Replace with blue sky and clouds',
-            'Fill with grass and nature matching the scene'
+            'Replace with a different color version of the same garment',
+            'Swap the top with a fitted white shirt',
+            'Change the shoes to white sneakers',
+            'Replace the bag with a black leather tote',
+            'Add a belt to define the waist of the outfit'
         ]
     },
     'outpainting': {
@@ -103,11 +103,11 @@ const modeConfig = {
         showStyle: false,
         promptPlaceholder: 'Describe what should appear in the extended area...\nExample: Continue the landscape, add more sky above, extend the room to the left',
         templates: [
-            'Continue the landscape naturally in all directions',
-            'Extend the room to show more interior',
-            'Add more sky with clouds above',
-            'Expand to reveal a wider street scene',
-            'Continue the forest into the distance'
+            'Extend to show the full outfit from head to toe',
+            'Expand to reveal the full studio backdrop',
+            'Show more of the runway or fashion show setting',
+            'Extend to show the model\'s surroundings and environment',
+            'Widen the shot to show a full lookbook spread'
         ]
     }
 };
@@ -163,6 +163,8 @@ const stylePreview         = document.getElementById('stylePreview');
 const removeStyleBtn       = document.getElementById('removeStyleBtn');
 const galleryGrid          = document.getElementById('galleryGrid');
 const clearHistoryBtn      = document.getElementById('clearHistoryBtn');
+const downloadSelectedBtn  = document.getElementById('downloadSelectedBtn');
+const selectedCountEl      = document.getElementById('selectedCount');
 const progressFill         = document.getElementById('progressFill');
 const progressTimer        = document.getElementById('progressTimer');
 const progressStatus       = document.getElementById('progressStatus');
@@ -269,6 +271,7 @@ function setupEventListeners() {
 
     // History clear
     clearHistoryBtn.onclick = clearHistory;
+    downloadSelectedBtn.onclick = downloadSelected;
 }
 
 // ── Image Upload Helper ───────────────────────────────────────────────────────
@@ -644,18 +647,50 @@ async function loadHistory() {
 function renderHistory(history) {
     if (!history || history.length === 0) {
         galleryGrid.innerHTML = '<span class="gallery-empty">No generations yet</span>';
+        updateSelectionUI();
         return;
     }
 
     galleryGrid.innerHTML = '';
-    history.forEach(entry => {
+    history.forEach((entry, i) => {
         const thumb = document.createElement('div');
         thumb.className = 'gallery-thumb';
         thumb.title = entry.prompt || entry.mode;
-        thumb.innerHTML = `<img src="${entry.image}" alt="${entry.mode}" loading="lazy">`;
-        thumb.onclick = () => openLightbox(entry.image, `nanobanana-${entry.mode}.png`);
+        thumb.dataset.image = entry.image;
+        thumb.dataset.mode = entry.mode;
+        thumb.dataset.index = i;
+        thumb.innerHTML = `
+            <img src="${entry.image}" alt="${entry.mode}" loading="lazy">
+            <div class="thumb-check"><svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3"><polyline points="20 6 9 17 4 12"/></svg></div>`;
+        thumb.onclick = (e) => {
+            thumb.classList.toggle('selected');
+            updateSelectionUI();
+        };
+        thumb.addEventListener('dblclick', () => openLightbox(entry.image, `nanobanana-${entry.mode}-${i}.png`));
         galleryGrid.appendChild(thumb);
     });
+    updateSelectionUI();
+}
+
+function updateSelectionUI() {
+    const selected = galleryGrid.querySelectorAll('.gallery-thumb.selected');
+    const count = selected.length;
+    selectedCountEl.textContent = count;
+    downloadSelectedBtn.style.display = count > 0 ? '' : 'none';
+}
+
+function downloadSelected() {
+    const selected = galleryGrid.querySelectorAll('.gallery-thumb.selected');
+    if (selected.length === 0) return;
+    selected.forEach((thumb, i) => {
+        setTimeout(() => {
+            const a = document.createElement('a');
+            a.href = thumb.dataset.image;
+            a.download = `nanobanana-${thumb.dataset.mode}-${thumb.dataset.index}.png`;
+            a.click();
+        }, i * 300); // stagger to avoid browser blocking
+    });
+    showToast(`Downloading ${selected.length} image${selected.length > 1 ? 's' : ''}...`, 'success');
 }
 
 async function clearHistory() {
