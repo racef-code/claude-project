@@ -160,6 +160,12 @@ def logout():
 @app.route('/')
 @login_required
 def index():
+    return redirect(url_for('playground'))
+
+
+@app.route('/vto')
+@login_required
+def vto():
     return render_template('index.html', username=session['username'])
 
 
