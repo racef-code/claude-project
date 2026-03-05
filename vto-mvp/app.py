@@ -49,20 +49,40 @@ for i in range(1, 4):
     if username and password:
         USERS[username] = password
 
-# Dropbox config
-DROPBOX_TOKEN = os.getenv("DROPBOX_TOKEN")
-DROPBOX_FOLDER = os.getenv("DROPBOX_FOLDER", "/images")
+# Dropbox config — prefer refresh token (never expires), fall back to legacy access token
+DROPBOX_APP_KEY       = os.getenv("DROPBOX_APP_KEY")
+DROPBOX_APP_SECRET    = os.getenv("DROPBOX_APP_SECRET")
+DROPBOX_REFRESH_TOKEN = os.getenv("DROPBOX_REFRESH_TOKEN")
+DROPBOX_TOKEN         = os.getenv("DROPBOX_TOKEN")   # legacy fallback
+DROPBOX_FOLDER        = os.getenv("DROPBOX_FOLDER", "/images")
+
+
+def _get_dropbox_client():
+    """Return an authenticated Dropbox client, preferring the refresh-token flow."""
+    import dropbox as dbx_module
+    if DROPBOX_APP_KEY and DROPBOX_APP_SECRET and DROPBOX_REFRESH_TOKEN:
+        dbx = dbx_module.Dropbox(
+            app_key=DROPBOX_APP_KEY,
+            app_secret=DROPBOX_APP_SECRET,
+            oauth2_refresh_token=DROPBOX_REFRESH_TOKEN,
+        )
+        # SDK v12 requires an explicit refresh call to obtain the access token
+        dbx.refresh_access_token()
+        return dbx
+    if DROPBOX_TOKEN:
+        logger.warning("Using legacy DROPBOX_TOKEN which will expire. Switch to refresh token.")
+        return dbx_module.Dropbox(DROPBOX_TOKEN)
+    return None
 
 
 def upload_to_dropbox(image_b64: str, filename: str):
     """Upload a base64 image to Dropbox in a background thread. Errors are logged, never raised."""
-    if not DROPBOX_TOKEN:
-        return
     try:
-        import dropbox
-        image_bytes = base64.b64decode(image_b64)
+        dbx = _get_dropbox_client()
+        if dbx is None:
+            return
+        image_bytes = base64.b64decode(image_b64.split(',', 1)[-1] if ',' in image_b64 else image_b64)
         dest_path = f"{DROPBOX_FOLDER.rstrip('/')}/{filename}"
-        dbx = dropbox.Dropbox(DROPBOX_TOKEN)
         dbx.files_upload(image_bytes, dest_path, mute=True)
         logger.info(f"Dropbox upload success: {dest_path}")
     except Exception as e:
@@ -496,13 +516,13 @@ def generate():
 @app.route('/dropbox-status')
 @login_required
 def dropbox_status():
-    if not DROPBOX_TOKEN:
-        return jsonify({'connected': False, 'error': 'DROPBOX_TOKEN not set'})
     try:
-        import dropbox
-        dbx = dropbox.Dropbox(DROPBOX_TOKEN)
+        import dropbox as dbx_module
+        dbx = _get_dropbox_client()
+        if dbx is None:
+            return jsonify({'connected': False, 'error': 'No Dropbox credentials configured'})
         result = dbx.files_list_folder(DROPBOX_FOLDER)
-        files = [e.name for e in result.entries if isinstance(e, dropbox.files.FileMetadata)]
+        files = [e.name for e in result.entries if isinstance(e, dbx_module.files.FileMetadata)]
         files.sort(reverse=True)
         return jsonify({
             'connected': True,
