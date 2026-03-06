@@ -1,6 +1,7 @@
 // ── State ─────────────────────────────────────────────────────────────────────
 let selectedItemId = null;
-let userImageBase64 = null;
+let userImagesBase64 = []; // Array of base64 images (1-5)
+const MAX_IMAGES = 5;
 let generatedTryOnBase64 = null;
 let tryOnTimerInterval = null;
 let tryOnProgressStart = null;
@@ -63,15 +64,18 @@ function setupEventListeners() {
     window.onclick = (e) => { if (e.target === modal) closeModal(); };
 
     uploadArea.onclick = () => fileInput.click();
-    fileInput.onchange = (e) => { if (e.target.files[0]) handleFileUpload(e.target.files[0]); };
+    fileInput.onchange = (e) => {
+        const files = Array.from(e.target.files);
+        if (files.length > 0) handleFileUploads(files);
+    };
 
     uploadArea.ondragover = (e) => { e.preventDefault(); uploadArea.classList.add('drag-over'); };
     uploadArea.ondragleave = () => uploadArea.classList.remove('drag-over');
     uploadArea.ondrop = (e) => {
         e.preventDefault();
         uploadArea.classList.remove('drag-over');
-        const file = e.dataTransfer.files[0];
-        if (file && file.type.startsWith('image/')) handleFileUpload(file);
+        const files = Array.from(e.dataTransfer.files).filter(f => f.type.startsWith('image/'));
+        if (files.length > 0) handleFileUploads(files);
     };
 
     generateBtn.onclick = generateTryOn;
@@ -94,26 +98,85 @@ function setupEventListeners() {
 }
 
 // ── File Upload ───────────────────────────────────────────────────────────────
-function handleFileUpload(file) {
-    if (file.size > 10 * 1024 * 1024) {
-        showToast('File size must be less than 10MB', 'error');
+function handleFileUploads(files) {
+    // Check if adding these files would exceed the limit
+    if (userImagesBase64.length + files.length > MAX_IMAGES) {
+        showToast(`Maximum ${MAX_IMAGES} images allowed. You have ${userImagesBase64.length} image(s).`, 'warning');
         return;
     }
-    if (!file.type.startsWith('image/')) {
-        showToast('Please upload an image file', 'error');
-        return;
+
+    // Validate and process each file
+    let validFiles = [];
+    for (let file of files) {
+        if (file.size > 10 * 1024 * 1024) {
+            showToast(`"${file.name}" is too large. Max 10MB per file.`, 'error');
+            continue;
+        }
+        if (!file.type.startsWith('image/')) {
+            showToast(`"${file.name}" is not an image.`, 'error');
+            continue;
+        }
+        validFiles.push(file);
     }
-    const reader = new FileReader();
-    reader.onload = (e) => {
-        userImageBase64 = e.target.result;
-        const preview = document.getElementById('uploadPreview');
-        preview.src = userImageBase64;
-        preview.style.display = 'block';
-        document.querySelector('.upload-placeholder').style.display = 'none';
-        generateBtn.style.display = 'block';
-    };
-    reader.readAsDataURL(file);
+
+    if (validFiles.length === 0) return;
+
+    // Process valid files
+    let processed = 0;
+    validFiles.forEach((file) => {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+            userImagesBase64.push(e.target.result);
+            processed++;
+
+            // When all files are processed, update the UI
+            if (processed === validFiles.length) {
+                showImagePreviews();
+                generateBtn.style.display = 'block';
+                showToast(`${validFiles.length} image(s) uploaded successfully`, 'success');
+            }
+        };
+        reader.readAsDataURL(file);
+    });
 }
+
+// Show image previews in a grid
+function showImagePreviews() {
+    const uploadPreviews = document.getElementById('uploadPreviews');
+    uploadPreviews.innerHTML = '';
+    uploadPreviews.style.display = 'grid';
+    document.querySelector('.upload-placeholder').style.display = 'none';
+
+    userImagesBase64.forEach((imageData, index) => {
+        const previewItem = document.createElement('div');
+        previewItem.className = 'preview-item';
+        previewItem.innerHTML = `
+            <img src="${imageData}" alt="Preview ${index + 1}">
+            <button class="remove-btn" onclick="removeImage(${index})" title="Remove image">&times;</button>
+            <span class="image-number">${index + 1}</span>
+        `;
+        uploadPreviews.appendChild(previewItem);
+    });
+}
+
+// Remove an image from the array
+window.removeImage = function(index) {
+    userImagesBase64.splice(index, 1);
+
+    if (userImagesBase64.length === 0) {
+        // No more images, show upload placeholder
+        const uploadPreviews = document.getElementById('uploadPreviews');
+        uploadPreviews.style.display = 'none';
+        uploadPreviews.innerHTML = '';
+        document.querySelector('.upload-placeholder').style.display = 'block';
+        generateBtn.style.display = 'none';
+        showToast('All images removed', 'info');
+    } else {
+        // Update previews with new numbering
+        showImagePreviews();
+        showToast('Image removed', 'info');
+    }
+};
 
 // ── Modal ─────────────────────────────────────────────────────────────────────
 function openTryOnModal(itemId, itemName) {
@@ -122,11 +185,8 @@ function openTryOnModal(itemId, itemName) {
     modal.classList.add('active');
     showModalStep('step1');
 
-    if (userImageBase64) {
-        const preview = document.getElementById('uploadPreview');
-        preview.src = userImageBase64;
-        preview.style.display = 'block';
-        document.querySelector('.upload-placeholder').style.display = 'none';
+    if (userImagesBase64.length > 0) {
+        showImagePreviews();
         generateBtn.style.display = 'block';
     }
 }
@@ -152,14 +212,8 @@ function showModalStep(step) {
 
 function resetModal() {
     selectedItemId = null;
-    userImageBase64 = null;
+    // Don't reset userImagesBase64 - keep cached for trying multiple items
     generatedTryOnBase64 = null;
-    fileInput.value = '';
-    const preview = document.getElementById('uploadPreview');
-    preview.src = '';
-    preview.style.display = 'none';
-    document.querySelector('.upload-placeholder').style.display = '';
-    generateBtn.style.display = 'none';
     showModalStep('step1');
 }
 
@@ -193,11 +247,12 @@ function stopTryOnProgress() {
 
 // ── Generate Try-On ───────────────────────────────────────────────────────────
 async function generateTryOn() {
-    if (!userImageBase64 || !selectedItemId) {
-        showToast('Please upload a photo first', 'warning');
+    if (userImagesBase64.length === 0 || !selectedItemId) {
+        showToast('Please upload at least one photo first', 'warning');
         return;
     }
 
+    console.log(`Starting try-on with ${userImagesBase64.length} reference image(s)...`);
     showModalStep('loading');
     startTryOnProgress();
 
@@ -205,7 +260,7 @@ async function generateTryOn() {
         const response = await fetch('/try-on', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ user_image: userImageBase64, item_id: selectedItemId })
+            body: JSON.stringify({ user_images: userImagesBase64, item_id: selectedItemId })
         });
 
         const data = await response.json();
@@ -234,7 +289,8 @@ function displayResults(generatedBase64) {
     const originalImg  = document.getElementById('originalImage');
     const generatedImg = document.getElementById('generatedImage');
 
-    originalImg.src  = userImageBase64;
+    // Show first uploaded image as the original
+    originalImg.src  = userImagesBase64[0];
     generatedImg.src = generatedBase64;
 
     showModalStep('results');

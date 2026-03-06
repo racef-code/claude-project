@@ -41,10 +41,11 @@
 
             <!-- Step 1: Upload -->
             <div id="modalStep1" class="modal-step active">
-                <h2 data-i18n="modal.upload.title">Upload Your Photo</h2>
+                <h2 data-i18n="modal.upload.title">Upload Your Photos</h2>
                 <p class="selected-item">Selected: <span id="selectedItemName"></span></p>
+                <p class="hint-text" data-i18n="modal.upload.subtitle">Upload 1-5 photos for best results (different angles recommended)</p>
                 <div id="uploadArea" class="upload-area">
-                    <input type="file" id="fileInput" accept="image/*" style="display: none;">
+                    <input type="file" id="fileInput" accept="image/*" multiple style="display: none;">
                     <div class="upload-placeholder">
                         <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
                             <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
@@ -52,9 +53,11 @@
                             <line x1="12" y1="3" x2="12" y2="15"/>
                         </svg>
                         <p data-i18n="modal.upload.drop">Click to upload or drag and drop</p>
-                        <p class="hint" data-i18n="modal.upload.hint">JPG, PNG up to 10MB</p>
+                        <p class="hint" data-i18n="modal.upload.hint">Select multiple photos (JPG, PNG up to 10MB each, max 5)</p>
                     </div>
-                    <img id="uploadPreview" class="upload-preview" style="display: none;">
+                    <div id="uploadPreviews" class="upload-previews" style="display: none;">
+                        <!-- Multiple image previews will be inserted here -->
+                    </div>
                 </div>
                 <button id="generateBtn" class="btn btn-primary" style="display: none;" data-i18n="modal.upload.btn">Generate Try-On</button>
             </div>

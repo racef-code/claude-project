@@ -226,11 +226,21 @@ def try_on():
         if not data:
             return jsonify({'error': 'No data provided'}), 400
 
-        user_image_b64 = data.get('user_image')
+        # Support both single image (backward compat) and multiple images
+        user_images_b64 = data.get('user_images') or [data.get('user_image')]
         item_id = data.get('item_id')
 
-        if not user_image_b64 or not item_id:
-            return jsonify({'error': 'Missing user_image or item_id'}), 400
+        if not user_images_b64 or not item_id:
+            return jsonify({'error': 'Missing user_images or item_id'}), 400
+
+        if not isinstance(user_images_b64, list):
+            user_images_b64 = [user_images_b64]
+
+        if len(user_images_b64) == 0:
+            return jsonify({'error': 'user_images must be a non-empty array'}), 400
+
+        if len(user_images_b64) > 5:
+            return jsonify({'error': 'Maximum 5 reference images allowed'}), 400
 
         item = next((i for i in catalog_data['items'] if i['id'] == item_id), None)
         if not item:
@@ -239,36 +249,51 @@ def try_on():
         if not GOOGLE_API_KEY:
             return jsonify({'error': 'GOOGLE_API_KEY not configured'}), 500
 
-        logger.info(f"Processing try-on for item: {item['name']}")
+        logger.info(f"Processing try-on for item: {item['name']} with {len(user_images_b64)} reference image(s)")
 
-        user_img = decode_base64_image(user_image_b64)
+        # Decode all user images
+        user_images = []
+        for idx, img_b64 in enumerate(user_images_b64):
+            try:
+                user_img = decode_base64_image(img_b64)
+                user_images.append(user_img)
+            except Exception as e:
+                return jsonify({'error': f'Failed to decode image {idx + 1}: {str(e)}'}), 400
 
         garment_path = os.path.join(BASE_DIR, 'static', item['image'])
         if not os.path.exists(garment_path):
             return jsonify({'error': f'Garment image not found: {garment_path}'}), 404
         garment_img = Image.open(garment_path)
 
+        # Construct prompt for Gemini with multiple reference images
+        num_images = len(user_images)
+        image_references = "reference images" if num_images > 1 else "reference image"
+
         prompt = f"""You are a virtual try-on assistant. Your task is to show how a person would look wearing a specific garment.
 
 INSTRUCTIONS:
-1. Take the person from the first image (their face, hair, body, pose, skin tone)
-2. Take the garment from the second image
-3. Generate a new image showing this exact person wearing this exact garment
-4. The result should look natural and photorealistic
+1. I'm providing you with {num_images} {image_references} of the same person showing different angles/poses
+2. Study all the reference images to understand the person's appearance (face, hair, body, skin tone, pose)
+3. The last image shows the garment to be worn
+4. Generate a new photorealistic image showing this exact person wearing this exact garment
 5. Preserve the person's identity perfectly - same face, same hair, same skin tone
 6. The garment should fit naturally on their body
+7. Choose the best pose/angle from the reference images or create a natural combination
 
 GARMENT DETAILS:
 {item['prompt']}
 
 Generate the try-on image now."""
 
-        logger.info("Calling Gemini API for try-on...")
+        logger.info(f"Calling Gemini API with {num_images} reference image(s)...")
         client = get_client()
+
+        # Build the content list: prompt + all user images + garment image
+        contents = [prompt] + user_images + [garment_img]
 
         response = client.models.generate_content(
             model='gemini-2.5-flash-image',
-            contents=[prompt, user_img, garment_img],
+            contents=contents,
             config=types.GenerateContentConfig(
                 response_modalities=["IMAGE"],
                 image_config=types.ImageConfig(aspect_ratio="3:4"),
