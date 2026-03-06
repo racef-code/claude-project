@@ -613,4 +613,19 @@ header p  { color: var(--text-secondary); font-size: 1rem; }
         display: block; width: 100%;
     }
     .result-actions .btn-primary { display: block; width: 100%; }
+
+    /* Multi-image upload optimization for mobile */
+    .upload-previews {
+        grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+        gap: 0.75rem;
+    }
+    .preview-item .image-number {
+        font-size: 0.65rem;
+        padding: 0.15rem 0.4rem;
+    }
+    .preview-item .remove-btn {
+        width: 24px;
+        height: 24px;
+        font-size: 0.75rem;
+    }
 }
